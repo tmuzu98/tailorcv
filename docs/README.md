@@ -19,7 +19,7 @@ Read the documents in order. Each one builds on the one before it.
 |---|---|
 | Planning & docs | ✅ Draft v0.1 complete |
 | Phase 0: Foundation | ✅ Complete (Days 1–3) |
-| Phase 1: MVP | ⏳ Next (Day 4) |
+| Phase 1: MVP | 🟡 In progress (Day 4 ✅, Day 5 next) |
 | Phase 2+ | ⬜ |
 
 ## Keeping docs alive

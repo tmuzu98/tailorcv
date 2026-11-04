@@ -107,12 +107,14 @@ Note: in the example, "used by 200+ internal users" is only allowed if the origi
 | `AI_PROVIDER_ERROR` | 502 | Upstream AI failure after retries | Offer a retry |
 | `AI_INVALID_OUTPUT` | 502 | Output failed the schema after the app-level retry | Offer a retry |
 | `AI_TIMEOUT` | 504 | Took longer than 90 s | Offer a retry |
+| `NOT_FOUND` | 404 | Unknown API route | Developer error (should not happen from the UI) |
 | `INTERNAL_ERROR` | 500 | Unexpected error | Generic message + requestId |
 
 ## 6. Versioning
 
 - The path is versioned (`/api/v1`). Breaking changes mean a new `/api/v2`.
 - `packages/shared` holds the request and response types, so the frontend and backend can't drift apart without a TypeScript error.
+- Source of truth in code: `ResumeSchema`, `TailorRequestSchema`, `TailorResultSchema` (+ `TailorResponseSchema` with `meta`), `ParseResponseSchema`, `ApiErrorResponseSchema`, `ERROR_CODES` in `packages/shared/src`. Unknown fields in requests are **stripped**, not rejected.
 
 ## 7. Planned endpoints (later phases, not built in MVP)
 

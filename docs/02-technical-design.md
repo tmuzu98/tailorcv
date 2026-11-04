@@ -120,12 +120,16 @@ resumeParser/
         └── src/
             ├── resume.schema.ts
             ├── tailor.schema.ts
-            └── api.types.ts
+            ├── api.schema.ts      # error catalog + response envelopes
+            ├── health.schema.ts
+            └── fixtures/          # synthetic test data (import via @tailorcv/shared/fixtures)
 ```
 
 ## 5. Data model (shared zod schemas)
 
 All schemas live in `packages/shared` and are the single source of truth for the API contract **and** for Claude's structured output format.
+
+> **Implemented on Day 4:** `packages/shared/src/{resume,tailor,api}.schema.ts`. Text fields are deliberately lenient (no email/URL format checks, free-text dates), because values come from messy PDFs. `LOCKED_FIELDS` exports the 🔒 list for the guardrail service. `llm-compat.test.ts` fails the build if a schema stops being compatible with Claude structured outputs (no recursion, closed objects, supported keywords/formats only).
 
 ### 5.1 `Resume`
 
@@ -145,7 +149,7 @@ Resume = {
     company: string              // 🔒 locked during tailoring
     title: string                // 🔒 locked
     location?: string            // 🔒 locked
-    startDate: string            // 🔒 locked; free text as written ("Jan 2021")
+    startDate?: string           // 🔒 locked; free text as written ("Jan 2021"); optional (some resumes omit dates)
     endDate?: string             // 🔒 locked; "Present" allowed
     bullets: { id: string; text: string }[]   // ✏️ may be reworded/reordered/trimmed
   }[]
@@ -206,7 +210,7 @@ TailorResult = {
      - System prompt: "Extract faithfully. Do not infer, do not embellish.
        Leave fields empty when absent. Preserve original wording of bullets."
 5. Post-process: assign stable ids (exp_1, exp_1_b1...), trim whitespace
-6. Return { resume, meta: { pages, tokensUsed, durationMs } }
+6. Return { resume, meta: { pages, durationMs, promptVersion } }  (token usage is logged, never sent to the client)
 7. Buffer goes out of scope → garbage collected (nothing persisted)
 ```
 

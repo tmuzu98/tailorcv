@@ -14,17 +14,17 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-03 |
-| Phase | **Phase 0: Foundation ✅ complete.** Next: Phase 1 (MVP), Milestone 1.1 |
-| Current day (per `07-daily-development-plan.md`) | **Day 3 ✅ complete**. Next session = **Day 4** (shared schemas) |
-| Branch | `main` → tracks `origin/main` (in sync after the Day 3 docs push) |
-| Remote | https://github.com/tmuzu98/tailorcv (**private**, no branch protection, D-35) |
-| Last commit | `docs: log Day 3 and Phase 0 completion` |
-| Build / CI | `npm run check` ✅ (lint, format, typecheck, **13 tests**) · `npm run build` ✅ · **GitHub Actions CI ✅ green** (first run: https://github.com/tmuzu98/tailorcv/actions/runs/41776288280) |
+| Last updated | 2026-11-04 |
+| Phase | Phase 1 (MVP), Milestone 1.1 (contracts & error foundation) |
+| Current day (per `07-daily-development-plan.md`) | **Day 4 ✅ complete (local only)**. Next session = **Day 5** |
+| Branch | `main`. **1 commit ahead of `origin/main` (Day 4, committed locally, NOT pushed)**. The user asked: don't push yet |
+| Remote | https://github.com/tmuzu98/tailorcv (**private**). GitHub is at `5c0e58c` (end of Day 3) |
+| Last commit | `feat(shared): add resume, tailor and API schemas with fixtures (Day 4)` (local) · last pushed: `5c0e58c` |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **61 tests**: shared 53, web 5, api 3). Web build ✅. CI not run for Day 4 (not pushed) |
 | Deployed URLs | — (optional on Day 5, otherwise Day 24) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** Day 4. SHR-1: full `ResumeSchema`, `TailorRequestSchema`, `TailorResultSchema`, `ApiErrorSchema` in `packages/shared` (Tech Design §5), plus SHR-2 synthetic fixtures (2 resumes, 3 JDs) and schema tests. Check that the zod schema features are compatible with Claude structured outputs.
+**Next action:** at the start of the next session, ask whether to **push the Day 4 commit** (that also runs CI on it). Then Day 5: `AppError` + error catalog (HTTP status per `ERROR_CODES`), requestId, pino-http with redaction, central error handler + 404 (`NOT_FOUND`), helmet, CORS, JSON body limit, rate limiters. Optional: deploy the skeleton.
 
 **Blockers:** none.
 
@@ -81,6 +81,13 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-03 | D-34 | **Push approved**: commit Day 3 and push all local commits (Day 2 + Day 3) to `origin/main` so CI runs | Needed for the Day 3 exit check (CI green on GitHub). Lifts the Day 2 "don't push yet" hold (resolves OD-8) | — |
 | 2026-11-03 | D-35 | **No branch protection for now.** The repo stays private on the Free plan (protection needs Pro or a public repo, confirmed via API 403). Safety net = CI on every push + `npm run check` before each commit. Revisit if collaborators join or we move to Pro | $0 and private. Two-person pairing on `main` (resolves OD-9) | Day 3 checklist |
 | 2026-11-03 | D-36 | Git auth for github.com goes through the **GitHub CLI** (`gh auth setup-git` → `credential.https://github.com.helper = !gh auth git-credential` in global `~/.gitconfig`, which bypasses the stale macOS Keychain entry). The `gh` token now has the **`workflow`** scope (`gh auth refresh -s workflow`, approved by the user in the browser) | The first Day 3 push failed: "Invalid username or token" (stale Keychain credential), and pushing `.github/workflows/*` needs the `workflow` scope | Known Issues #6 |
+| 2026-11-04 | D-37 | Resume schema is **lenient on text**: email, phone, link URLs and dates are plain strings (no `email`/`uri` formats, free-text dates such as "Spring '22" or "Present"). **`experience.startDate` made optional** (Tech Design had it required) | Values come from messy real PDFs. A strict format would fail valid resumes. Some resumes have no dates | `resume.schema.ts`, Tech Design §5.1 updated |
+| 2026-11-04 | D-38 | Use `z.object` (**strips unknown fields**) rather than `z.strictObject` for all schemas. Zod 4's JSON Schema output still marks every object `additionalProperties: false`, as Claude requires | Forward-compatible API (web and API deploy separately), while staying compatible with structured outputs | `llm-compat.test.ts` |
+| 2026-11-04 | D-39 | **Structured-outputs compatibility enforced by a test** (`packages/shared/src/llm-compat.test.ts`): no `$ref`/recursion, supported types/formats/keywords only (min/max allowed because the SDK strips and checks them), every object closed, walker sanity check. Mutation-tested (a loose object + a regex → 4 failures). **Final confirmation with the SDK's `zodOutputFormat` on Day 7** | A schema change that breaks Claude parsing fails CI immediately, not at runtime | — |
+| 2026-11-04 | D-40 | `LOCKED_FIELDS` constant lives in shared (experience: company/title/location/dates; education: institution/degree/field/dates; certifications: name/issuer/date), type-checked against the schema keys | The single definition the guardrail service (Day 12) and tests use | `resume.schema.ts` |
+| 2026-11-04 | D-41 | Fixtures are **typed TS** (not JSON/.txt) in `packages/shared/src/fixtures/`, imported via the subpath **`@tailorcv/shared/fixtures`** and **not** exported from the main entry (verified absent from the web bundle). Added an extra known-good `sampleTailorResultSweFrontend` (honest tailoring: locked fields unchanged, no new skills) | Compile-time drift detection. Works in Vite, tsx and Vitest without loaders. The result fixture is reused later by FakeLlmClient and the UI tests | Day 4 checklist |
+| 2026-11-04 | D-42 | Contract details: file named `api.schema.ts` (not `api.types.ts`); added **`NOT_FOUND` (404)** to the error catalog; parse `meta` = `{pages, durationMs, promptVersion}` (**token usage is logged, never sent to the client**); `TailorResponseSchema` = `TailorResultSchema` + `meta` | Contains schemas, not just types. Day 5's 404 handler needs a code. Don't leak cost data to the client | API spec §5 updated |
+| 2026-11-04 | D-43 | `TailorRequest`: JD is **trimmed, then** checked for 100–15,000 chars (constants exported); `options` optional, `tone` ∈ professional/concise/impactful (default professional). Separate `TailorRequestInput` (client) and `TailorRequest` (server, after defaults) types | Whitespace can't pass the minimum. The web form can reuse the same limits | `tailor.schema.ts` |
 
 ---
 
@@ -207,6 +214,32 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** Known Issue #6 (resolved). None open.
 **Exit check met?** ✅ Yes. CI is green on GitHub, and a fresh copy installs and passes everything with `npm ci`. **Phase 0 complete.**
 **Next session:** Day 4: shared schemas (SHR-1) + synthetic fixtures (SHR-2).
+
+### 2026-11-04: Session 6 (Day 4: Shared schemas, the contract)
+**Day:** 4
+**User instructions this session:** work **locally only, don't push anything**.
+
+**Done**
+- [SHR-1] `resume.schema.ts` (ResumeSchema + sub-schemas, `LOCKED_FIELDS`), `tailor.schema.ts` (request/options/tone, Change, KeywordAnalysis, JobSummary, TailorResult, JD limits), `api.schema.ts` (`ERROR_CODES`, `ApiErrorResponseSchema`, `ParseResponseSchema`, `TailorResponseSchema`). All types exported.
+- [SHR-2] Synthetic fixtures: `sampleResumeSwe` (all sections), `sampleResumeNewGrad` (sparse), JDs frontend/data-analyst/PM (strong/partial/weak match), `sampleTailorResultSweFrontend`.
+- Tests: **53 in shared** (schemas, fixtures, unique ids, synthetic-data check, an honesty check on the sample result, LLM compatibility). Total 61.
+- Docs: Tech Design §4/§5.1/§6.1, API spec §5/§6, Day 4 checklist updated to match the code.
+
+**Verified**
+- Read the structured-outputs limits from the Claude API reference: no recursion, no numeric/string constraints (the SDK strips them and checks client-side), `additionalProperties:false` required, limited formats. Encoded in `llm-compat.test.ts` and mutation-tested.
+- Fixtures are not in the web production bundle.
+- `npm run check` ✅.
+
+**Discussed / notes**
+- Started at the user's request right after Day 3.
+- The user asked how to see the app in the browser: explained `npm run dev` → http://localhost:5173 and started the servers in the background. Stopped them at the end of the session.
+- Wrote a full project summary (product, stack, design, progress, decisions, gotchas, open items) for the user's personal notes.
+- Wrap-up: the user asked to **wrap up without pushing**, so Day 4 was committed locally only.
+
+**Decisions:** D-37 → D-43.
+**Issues / blockers:** none.
+**Exit check met?** ✅ Tests green, and the API spec matches the schemas. Committed locally (not pushed).
+**Next session:** Day 5: error foundation + security middleware (BE-1, BE-2).
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

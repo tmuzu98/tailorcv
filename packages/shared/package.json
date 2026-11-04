@@ -5,7 +5,8 @@
   "description": "Shared zod schemas and TypeScript types used by @tailorcv/api and @tailorcv/web.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

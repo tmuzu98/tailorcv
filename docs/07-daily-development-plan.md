@@ -108,13 +108,13 @@
 **Goal:** the data contract is final, so the frontend and backend can be built against it independently.
 **Tasks:** SHR-1 · SHR-2
 
-- [ ] `resume.schema.ts`: full `ResumeSchema` per Tech Design §5.1 (basics, experience, education, skills, projects, certifications, additionalSections, with ids on items and bullets)
-- [ ] `tailor.schema.ts`: `TailorRequestSchema`, `TailorResultSchema`, `ChangeSchema`, `KeywordAnalysisSchema`
-- [ ] `api.types.ts`: `ApiErrorSchema`, error code union type, `ParseResponse`
-- [ ] Export the inferred TS types (`type Resume = z.infer<…>`)
-- [ ] Confirm the schema works with Claude structured outputs (quick check: no unsupported zod features)
-- [ ] Fixtures: `fixtures/resumes/sample-swe.json`, `sample-newgrad.json` + `fixtures/jds/frontend.txt`, `data-analyst.txt`, `pm.txt` (all synthetic)
-- [ ] Unit tests: the fixtures validate, and bad data is rejected
+- [x] `resume.schema.ts`: full `ResumeSchema` per Tech Design §5.1 (basics, experience, education, skills, projects, certifications, additionalSections, with ids on items and bullets)
+- [x] `tailor.schema.ts`: `TailorRequestSchema`, `TailorResultSchema`, `ChangeSchema`, `KeywordAnalysisSchema`
+- [x] `api.schema.ts` _(renamed from api.types.ts)_: `ApiErrorResponseSchema`, `ERROR_CODES`, `ParseResponseSchema`, `TailorResponseSchema`
+- [x] Export the inferred TS types (`type Resume = z.infer<…>`)
+- [x] Confirm the schema works with Claude structured outputs (quick check: no unsupported zod features)
+- [x] Fixtures _(as typed TS in `packages/shared/src/fixtures/`)_: `sampleResumeSwe`, `sampleResumeNewGrad`, JDs `frontendEngineer`, `dataAnalyst`, `productManager`, plus a known-good `sampleTailorResultSweFrontend` (all synthetic)
+- [x] Unit tests: the fixtures validate, and bad data is rejected _(53 shared tests)_
 
 **Deliverable:** `@tailorcv/shared` exports all the schemas and types.
 **Exit check:** tests are green, and the API spec doc matches the schemas.
@@ -469,7 +469,7 @@
 | 1 | Kickoff, repo & tooling | ✅ |
 | 2 | Scaffold workspaces | ✅ |
 | 3 | Tests, dev cmd, CI → **Phase 0 done** | ✅ |
-| 4 | Shared schemas | ⬜ |
+| 4 | Shared schemas | ✅ (committed locally, not pushed) |
 | 5 | Errors & security 🛟 → **M1.1** | ⬜ |
 | 6 | PDF upload & validation | ⬜ |
 | 7 | LLM client | ⬜ |
