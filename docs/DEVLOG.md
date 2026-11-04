@@ -16,13 +16,15 @@
 |---|---|
 | Last updated | 2026-11-03 |
 | Phase | Phase 0: Foundation |
-| Current day (per `07-daily-development-plan.md`) | **Day 1 ✅ complete**. Next session = **Day 2** |
-| Branch | `main` (local only, no remote yet; pushed on Day 3) |
-| Last commit | `chore: initialize monorepo` (Day 1) |
-| Build / CI | `npm run lint` ✅ · `npm run format:check` ✅ · `typecheck` ⏸ (no workspaces until Day 2) · CI not set up (Day 3) |
+| Current day (per `07-daily-development-plan.md`) | **Day 2 ✅ complete**. Next session = **Day 3** |
+| Branch | `main` → tracks `origin/main` |
+| Remote | https://github.com/tmuzu98/tailorcv (**private**) |
+| Last commit | `docs: log Day 1 GitHub setup and Day 2 progress` (local). **2 commits ahead of `origin/main`, not pushed.** User asked: do not push until told |
+| Build / CI | `lint` ✅ · `format:check` ✅ · `typecheck` ✅ (3 workspaces) · api `build` ✅ · web `build` ✅ · tests: none yet (Day 3) · CI not set up (Day 3) |
 | Deployed URLs | — |
+| Local dev | API `cd apps/api && npm run dev` → :4000 · Web `cd apps/web && npm run dev` → :5173 (one combined `npm run dev` arrives on Day 3, PLT-8) |
 
-**Next action:** Day 2. Scaffold `packages/shared`, `apps/api`, `apps/web` (PLT-3, PLT-4, PLT-5). Decide how the API is run and built (see the Day 2 note in the Session 3 entry).
+**Next action:** Day 3: Vitest + sample tests, root `npm run dev` with `concurrently`, GitHub Actions CI, branch protection, README quickstart. **Ask the user before pushing** (CI needs a push to run).
 
 **Blockers:** none.
 
@@ -60,6 +62,16 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-03 | D-15 | Accept the 13 moderate `npm audit` findings (all one `minimatch` ReDoS in ESLint's dependency tree, dev-only) instead of `audit fix --force` | `--force` would downgrade typescript-eslint (breaking). Nothing ships to users. Recheck on Day 3 | Known Issues #1 |
 | 2026-11-03 | D-16 | Commit shared VS Code settings (`.vscode/settings.json`, `extensions.json`): format on save, ESLint fix on save | Consistent formatting while pairing. No effect in other editors | `.vscode/` |
 | 2026-11-03 | D-17 | Commits authored as **Muzaffarhusain Turak / tmuzu98@gmail.com** (existing global git config); user confirmed this is the GitHub account email | Resolves OD-7 | — |
+| 2026-11-03 | D-18 | GitHub repo creation **pulled forward from Day 3 to Day 1**: private repo `tmuzu98/tailorcv` created with the GitHub CLI and `main` pushed. Tooling: `gh` 2.103.3 via Homebrew, logged in as `tmuzu98` (HTTPS, token in the macOS keychain) | User wanted the code backed up on GitHub right away. The Day 3 "create repo + push" item is now done | Day 3 checklist |
+| 2026-11-03 | D-19 | API runs with **`tsx watch`** in dev and is bundled with **`tsup`** for production (`dist/server.js`, ESM, sourcemaps). `@tailorcv/shared` is consumed **as TS source** (`exports` → `src/index.ts`, no build step); tsup bundles it via `noExternal: [/^@tailorcv\//]` | User choice. Works with `moduleResolution: Bundler`, so no `.js` import extensions. One fewer build step | `apps/api/tsup.config.ts`, `packages/shared/package.json` |
+| 2026-11-03 | D-20 | Versions installed on Day 2: **Express 5.3**, **pino 10.4** (+ pino-pretty 13 dev), **zod 4.6**, **tsx 4.23**, **tsup 9.0**, **React 19.3**, **React Router 8.5**, **Vite 8.3** + @vitejs/plugin-react 6.2, **Tailwind 4.3** (`@tailwindcss/vite`), @types/node 26 | Latest stable at setup time | `package.json` files |
+| 2026-11-03 | D-21 | **Did not approve** npm 11's blocked install scripts for `esbuild` (postinstall) and `fsevents` (install) | Verified esbuild works without its postinstall (tsx, tsup and Vite all ran). Least privilege. Revisit only if builds or file-watching break | Known Issues #3 |
+| 2026-11-03 | D-22 | Env vars validated with zod at startup (`apps/api/src/config/env.ts`). The server exits with a readable error if invalid. `.env` loaded with Node's built-in `--env-file-if-exists` (no `dotenv`). `ANTHROPIC_API_KEY` **optional until Day 7**; `CORS_ORIGIN` defaults to `http://localhost:5173` | Fail fast on misconfiguration. One fewer dependency. The skeleton runs without a key | `apps/api/.env.example` |
+| 2026-11-03 | D-23 | `createApp()` factory (`app.ts`) separate from `server.ts` (listen + graceful SIGINT/SIGTERM shutdown). `x-powered-by` disabled | Testable without opening a port (Supertest, Day 3). Render sends SIGTERM on redeploy | Tech Design §4 |
+| 2026-11-03 | D-24 | `@tailorcv/shared` exports `API_PREFIX` (`/api/v1`) and `HealthResponseSchema`. The API types its response with it; the web **validates** the response with it | Proves the workspace link both ways. Establishes the "contract in shared" pattern | `packages/shared/src` |
+| 2026-11-03 | D-25 | Health check in the web uses plain `fetch` + `useEffect` (with AbortController); **TanStack Query is introduced on Day 9** with the real API client | Not worth adding a library for one GET in the skeleton | `apps/web/src/api/health.ts` |
+| 2026-11-03 | D-26 | Web skeleton: React Router `createBrowserRouter` with a shared `AppLayout` (header + temporary step nav, footer with the privacy note + live API status dot). Placeholder pages say which day builds them. Vite dev proxy `/api` → `:4000` (`strictPort` 5173); `VITE_API_BASE_URL` used in production | Matches the routes in Tech Design §6.4. Same-origin in dev, so no CORS needed locally | `apps/web/src/app` |
+| 2026-11-03 | D-27 | Logging: pino-pretty with **local** timestamps in development, raw JSON in production, silent in test | Readable locally. JSON for Render's log viewer | `apps/api/src/lib/logger.ts` |
 
 ---
 
@@ -75,7 +87,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | # | Severity | Description | Found | Status |
 |---|---|---|---|---|
 | 1 | Low (dev-only) | `npm audit`: 13 moderate, all from `minimatch` ReDoS (GHSA-g3hv-75wg-m249) inside ESLint / typescript-eslint deps. The only "fix" is a breaking downgrade | Day 1 | Accepted (D-15). Recheck on Day 3 and when ESLint updates |
-| 2 | Info | `npm run typecheck` errors with "No workspaces found" until workspaces exist | Day 1 | Resolves on Day 2 |
+| 2 | Info | `npm run typecheck` errors with "No workspaces found" until workspaces exist | Day 1 | ✅ Resolved Day 2 |
+| 3 | Low | npm 11 warns on every install about blocked install scripts (`esbuild`, `fsevents`). Harmless noise (D-21) | Day 2 | Accepted. If needed: `npm install-scripts approve <pkg>` or `deny <pkg>` to silence |
+| 4 | Medium (process) | **npm quirk:** `npm install <pkgs> --workspace=<path>` sometimes installs but **doesn't save runtime deps** to the workspace `package.json` on the first run (happened 3× on Day 2; dev deps were fine). Also, installing a local workspace package by name (`@tailorcv/shared`) fails because it isn't on the registry | Day 2 | Workaround: **always check the workspace `package.json` after installing**, and re-run if missing. Add local packages by hand as `"@tailorcv/shared": "*"` then `npm install` |
+| 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 
 ---
 
@@ -125,6 +140,8 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Issues / blockers:** none. Known Issues #1 and #2 logged.
 **Exit check met?** ✅ Yes. User confirmed the commit email (D-17) and approved the first commit `chore: initialize monorepo`.
+
+**Extra (same session):** the user couldn't find the repo on GitHub. Explained that Day 1 is local-only and the push was planned for Day 3. The user chose to do it now (D-18): installed `gh` via Homebrew, the user ran `gh auth login` (browser device flow), and Claude ran `gh repo create tailorcv --private --source=. --push`. Repo: https://github.com/tmuzu98/tailorcv, private, default branch `main`.
 **Next session:** Day 2, PLT-3 (`packages/shared`).
 
 <!--
@@ -142,3 +159,29 @@ TEMPLATE FOR NEW ENTRIES (copy below the last entry):
 **Exit check met?** yes / no (why)
 **Next session:** Day Y, first task
 -->
+
+### 2026-11-03: Session 4 (Day 2: Scaffold the three workspaces)
+**Day:** 2 (started the same evening as Day 1, at the user's request)
+**User instructions this session:** do Day 2 now, **don't push anything yet**.
+
+**Done**
+- [Decision] API run/build: `tsx` (dev) + `tsup` (prod) (D-19).
+- [PLT-3] `packages/shared`: package.json (`exports` → TS source), tsconfig, zod, `API_PREFIX`, `HealthResponseSchema`.
+- [PLT-4] `apps/api`: Express 5, `app.ts` factory, `server.ts` (graceful shutdown), zod env validation (`config/env.ts`), pino logger, `GET /api/v1/health`, `.env.example`, `tsup.config.ts`. Scripts: `dev`, `build`, `start`, `typecheck`.
+- [PLT-5] `apps/web`: Vite 8 + React 19 + TS, Tailwind v4, React Router (`/`, `/review`, `/job`, `/result`, 404), `AppLayout`, placeholder pages, favicon, Vite proxy `/api` → `:4000`, `ApiStatus` footer indicator that calls the health check and validates it with the shared schema.
+
+**Verified (by Claude)**
+- `curl :4000/api/v1/health` → `{"status":"ok","version":"0.1.0","uptimeSec":0}`. Unknown route → 404.
+- Through the Vite proxy: `curl :5173/api/v1/health` → ok. Deep link `/review` → 200 (SPA fallback).
+- Production: `tsup` → `dist/server.js` (3 KB) runs under plain `node`, logs JSON. Invalid `PORT=abc` → clear zod error and exit 1.
+- `typecheck` (3 workspaces) ✅, `lint` ✅, `format:check` ✅, web `vite build` ✅.
+
+**Discussed**
+- Whether Day 2 could be done the same day. Yes, about 1–1.5 h when pairing. The user chose to continue.
+- npm 11 blocks dependency install scripts by default. We tested without approving them; everything works (D-21).
+- npm workspace install quirk (Known Issues #4).
+
+**Decisions:** D-19 → D-27.
+**Issues / blockers:** Known Issues #3, #4, #5 logged. None blocking.
+**Exit check met?** ✅ Yes. Claude verified it with curl, and the **user confirmed "API: ok" in the browser**. Committed locally as 2 commits (scaffold code, then docs). Not pushed, per the user's instruction.
+**Next session:** Day 3: Vitest in all workspaces + sample tests (health route via Supertest, shared schema, `<App/>` render), root `npm run dev` (concurrently), GitHub Actions CI, branch protection, README quickstart. (Repo creation already done, D-18.)

@@ -72,13 +72,14 @@
 **Goal:** `packages/shared`, `apps/api` and `apps/web` exist and each one runs on its own.
 **Tasks:** PLT-3 · PLT-4 · PLT-5
 
-- [ ] `packages/shared`: package.json, tsconfig, `src/index.ts`, zod dependency, export one placeholder schema
-- [ ] `apps/api`: Express 5, `src/app.ts` (factory), `src/server.ts`, `src/config/env.ts` (zod-validated env), pino logger, `GET /api/v1/health`
-- [ ] `apps/api/.env.example`
-- [ ] `apps/web`: Vite + React + TS, Tailwind v4, React Router with 4 placeholder routes (`/`, `/review`, `/job`, `/result`)
-- [ ] Vite dev proxy `/api` → `http://localhost:4000`
-- [ ] Home page fetches `/api/v1/health` and shows "API: ok"
-- [ ] Both apps import something from `@tailorcv/shared` (proves the workspace link works)
+- [x] `packages/shared`: package.json, tsconfig, `src/index.ts`, zod dependency, export one placeholder schema
+- [x] `apps/api`: Express 5, `src/app.ts` (factory), `src/server.ts`, `src/config/env.ts` (zod-validated env), pino logger, `GET /api/v1/health`
+- [x] `apps/api/.env.example`
+- [x] `apps/web`: Vite + React + TS, Tailwind v4, React Router with 4 placeholder routes (`/`, `/review`, `/job`, `/result`)
+- [x] Vite dev proxy `/api` → `http://localhost:4000`
+- [x] Home page fetches `/api/v1/health` and shows "API: ok" _(in the footer, on every page)_
+- [x] Both apps import something from `@tailorcv/shared` (proves the workspace link works)
+- [x] User confirms "API: ok" in the browser + commit (no push, per user)
 
 **Deliverable:** run the api and the web separately, and the browser shows "API: ok".
 **Exit check:** `curl localhost:4000/api/v1/health` returns `{status:"ok"}`, and the UI shows the status.
@@ -93,7 +94,7 @@
 - [ ] Sample tests: shared schema test, `GET /health` integration test, `<App/>` render test
 - [ ] Root `npm test`, `npm run build`
 - [ ] `concurrently` → root `npm run dev` starts api + web
-- [ ] Create the GitHub repo and push
+- [x] Create the GitHub repo and push _(done early on Day 1, D-18: https://github.com/tmuzu98/tailorcv)_
 - [ ] `.github/workflows/ci.yml`: Node 24, `npm ci`, lint, typecheck, test, build
 - [ ] Branch protection on `main` (CI required)
 - [ ] Update the README quickstart
@@ -466,7 +467,7 @@
 | Day | Focus | Status |
 |---|---|---|
 | 1 | Kickoff, repo & tooling | ✅ |
-| 2 | Scaffold workspaces | ⬜ |
+| 2 | Scaffold workspaces | ✅ |
 | 3 | Tests, dev cmd, CI → **Phase 0 done** | ⬜ |
 | 4 | Shared schemas | ⬜ |
 | 5 | Errors & security 🛟 → **M1.1** | ⬜ |

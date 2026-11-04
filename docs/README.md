@@ -18,7 +18,7 @@ Read the documents in order. Each one builds on the one before it.
 | Phase | State |
 |---|---|
 | Planning & docs | ✅ Draft v0.1 complete |
-| Phase 0: Foundation | 🟡 In progress (Day 1 ✅, Day 2 next) |
+| Phase 0: Foundation | 🟡 In progress (Day 1 ✅, Day 2 ✅, Day 3 next) |
 | Phase 1: MVP | ⬜ |
 | Phase 2+ | ⬜ |
 
