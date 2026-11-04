@@ -17,14 +17,14 @@
 | Last updated | 2026-11-04 |
 | Phase | Phase 1 (MVP), Milestone 1.1 (contracts & error foundation) |
 | Current day (per `07-daily-development-plan.md`) | **Day 4 ✅ complete (local only)**. Next session = **Day 5** |
-| Branch | `main`. **1 commit ahead of `origin/main` (Day 4, committed locally, NOT pushed)**. The user asked: don't push yet |
-| Remote | https://github.com/tmuzu98/tailorcv (**private**). GitHub is at `5c0e58c` (end of Day 3) |
-| Last commit | `feat(shared): add resume, tailor and API schemas with fixtures (Day 4)` (local) · last pushed: `5c0e58c` |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **61 tests**: shared 53, web 5, api 3). Web build ✅. CI not run for Day 4 (not pushed) |
+| Branch | `main` → in sync with `origin/main` |
+| Remote | https://github.com/tmuzu98/tailorcv (**private**) |
+| Last commit | `docs: log Day 4 push` (pushed). Day 4 code commit `433cb95` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **61 tests**: shared 53, web 5, api 3). Web build ✅. **CI ✅ green on Day 4** (run 41778035944) |
 | Deployed URLs | — (optional on Day 5, otherwise Day 24) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** at the start of the next session, ask whether to **push the Day 4 commit** (that also runs CI on it). Then Day 5: `AppError` + error catalog (HTTP status per `ERROR_CODES`), requestId, pino-http with redaction, central error handler + 404 (`NOT_FOUND`), helmet, CORS, JSON body limit, rate limiters. Optional: deploy the skeleton.
+**Next action:** Day 5: `AppError` + error catalog (HTTP status per `ERROR_CODES`), requestId, pino-http with redaction, central error handler + 404 (`NOT_FOUND`), helmet, CORS, JSON body limit, rate limiters. Optional: deploy the skeleton.
 
 **Blockers:** none.
 
@@ -234,11 +234,11 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Started at the user's request right after Day 3.
 - The user asked how to see the app in the browser: explained `npm run dev` → http://localhost:5173 and started the servers in the background. Stopped them at the end of the session.
 - Wrote a full project summary (product, stack, design, progress, decisions, gotchas, open items) for the user's personal notes.
-- Wrap-up: the user asked to **wrap up without pushing**, so Day 4 was committed locally only.
+- Wrap-up: the user first asked to wrap up without pushing (committed locally as `433cb95`), then changed their mind and asked to **push as well**. Pushed, and CI is green (run 41778035944).
 
 **Decisions:** D-37 → D-43.
 **Issues / blockers:** none.
-**Exit check met?** ✅ Tests green, and the API spec matches the schemas. Committed locally (not pushed).
+**Exit check met?** ✅ Tests green, and the API spec matches the schemas. Committed and pushed. CI green.
 **Next session:** Day 5: error foundation + security middleware (BE-1, BE-2).
 
 <!--

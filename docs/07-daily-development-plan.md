@@ -469,7 +469,7 @@
 | 1 | Kickoff, repo & tooling | ✅ |
 | 2 | Scaffold workspaces | ✅ |
 | 3 | Tests, dev cmd, CI → **Phase 0 done** | ✅ |
-| 4 | Shared schemas | ✅ (committed locally, not pushed) |
+| 4 | Shared schemas | ✅ |
 | 5 | Errors & security 🛟 → **M1.1** | ⬜ |
 | 6 | PDF upload & validation | ⬜ |
 | 7 | LLM client | ⬜ |
