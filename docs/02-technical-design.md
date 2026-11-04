@@ -1,0 +1,327 @@
+# 02 — Technical Design Document
+
+| Field | Value |
+|---|---|
+| Status | Draft v0.1 |
+| Last updated | 2026-11-03 |
+| Related | [PRD](01-product-requirements.md) · [API spec](03-api-specification.md) · [Roadmap](04-implementation-roadmap.md) · [ADRs](06-architecture-decisions.md) |
+
+---
+
+## 1. Goals & constraints
+
+- **JavaScript or TypeScript end to end**: React frontend and Node.js backend.
+- **MVP is stateless.** No database and no auth, so it can ship fast. Persistence arrives in Phase 3 without a rewrite.
+- **One shared schema** for the resume data model, used by the frontend, the backend, and the LLM's structured output.
+- **Honesty enforced in code**, not only in prompts.
+
+## 2. Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Language | **TypeScript 5.x** (strict) | Type safety across the FE/BE boundary. Still the JS ecosystem (ADR-001) |
+| Monorepo | **npm workspaces** | Built into npm, no extra tooling. Turborepo can be added later |
+| Frontend framework | **React 19 + Vite** | Fast dev server, standard React setup |
+| Styling | **Tailwind CSS v4** | Quick to build UI with, consistent design tokens |
+| Routing | **React Router** | Simple page routing |
+| Server state | **TanStack Query** | Mutation state (loading, error, retry) for the API calls |
+| Forms / validation | **react-hook-form + zod** | Reuses the shared zod schemas |
+| PDF rendering & export | **@react-pdf/renderer** | Real text PDFs (ATS-safe). Runs in the browser, no headless Chrome (ADR-004) |
+| Backend runtime | **Node.js 24 LTS** | Matches the local environment |
+| Backend framework | **Express 5** | Widely known, async error handling built in, large ecosystem (ADR-002) |
+| File upload | **multer** (memory storage) | Files never touch disk |
+| PDF validation | **unpdf** | Page count, encryption check, and a cheap text sniff before calling the AI |
+| AI / LLM | **Claude API** via `@anthropic-ai/sdk`, model `claude-opus-5-5` | Reads PDFs natively, structured JSON output, strong writing quality (ADR-003) |
+| Validation | **zod** (in `packages/shared`) | One source of truth for the schemas |
+| Security middleware | helmet, cors, express-rate-limit | OWASP basics |
+| Logging | **pino** | Structured JSON logs, with redaction |
+| Testing | **Vitest**, React Testing Library, Supertest, **Playwright** (E2E) | One test runner for the whole JS codebase |
+| Lint / format | ESLint (flat config) + Prettier | |
+| CI | GitHub Actions | Lint, typecheck, test, build |
+| Hosting | Frontend on **Vercel** (Hobby), API on **Render** (free web service) | $0 MVP, git-push deploys (ADR-009) |
+| Later: DB / ORM | PostgreSQL + **Drizzle ORM** | Phase 3 |
+| Later: Auth | **Better Auth** (or Clerk) | Phase 3 |
+
+## 3. High-level architecture
+
+```
+┌──────────────────────────── Browser (React SPA) ────────────────────────────┐
+│  UploadPage ──► ParsedReviewPage ──► JobDescriptionPage ──► ResultPage       │
+│        │                                     │                  │            │
+│        │  TanStack Query mutations           │                  │ @react-pdf │
+│        ▼                                     ▼                  ▼ (download) │
+└────────┼─────────────────────────────────────┼───────────────────────────────┘
+         │ POST /api/v1/resumes/parse          │ POST /api/v1/resumes/tailor
+         │ (multipart PDF)                     │ (JSON: resume + JD)
+┌────────▼─────────────────────────────────────▼───────────────────────────────┐
+│                         Node.js API (Express 5)                              │
+│  middleware: helmet · cors · rate-limit · requestId · pino · errorHandler    │
+│                                                                              │
+│  routes/ ─► controllers/ ─► services/                                        │
+│                              ├─ pdfValidationService   (unpdf)               │
+│                              ├─ resumeParserService    (LLM call #1)         │
+│                              ├─ jobTailorService       (LLM call #2)         │
+│                              ├─ guardrailService       (deterministic checks)│
+│                              └─ llmClient              (Anthropic SDK wrapper)│
+└───────────────────────────────────────┬──────────────────────────────────────┘
+                                        │ HTTPS
+                                ┌───────▼────────┐
+                                │  Claude API    │
+                                └────────────────┘
+```
+
+**Why two endpoints instead of one?**
+1. The user can check the parsed resume before tailoring. If parsing is wrong, tailoring will be wrong too.
+2. The same parsed resume can be tailored to many JDs without uploading or parsing again. This saves cost and time.
+3. Each request stays well under HTTP timeouts.
+4. It sets up Phase 3 cleanly, where the parsed resume becomes a saved "base resume".
+
+## 4. Repository structure
+
+```
+resumeParser/
+├── package.json               # npm workspaces root
+├── tsconfig.base.json
+├── eslint.config.js
+├── .prettierrc
+├── .github/workflows/ci.yml
+├── docs/                      # ← this documentation
+├── apps/
+│   ├── web/                   # React + Vite frontend
+│   │   ├── src/
+│   │   │   ├── app/           # router, providers, layout
+│   │   │   ├── pages/         # Upload, Review, JobDescription, Result
+│   │   │   ├── features/
+│   │   │   │   ├── upload/        # Dropzone, file validation
+│   │   │   │   ├── resume-view/   # Read-only HTML view of the resume JSON
+│   │   │   │   ├── tailor/        # JD form, change list, keyword chips
+│   │   │   │   └── pdf-export/    # @react-pdf templates + download button
+│   │   │   ├── api/           # typed fetch client + query hooks
+│   │   │   ├── components/ui/ # Button, Card, Spinner, Alert...
+│   │   │   └── store/         # session state (parsed resume, JD, result)
+│   │   └── tests/
+│   └── api/                   # Express backend
+│       ├── src/
+│       │   ├── server.ts      # bootstrap
+│       │   ├── app.ts         # express app factory (testable)
+│       │   ├── config/env.ts  # zod-validated env vars
+│       │   ├── routes/        # health, resumes
+│       │   ├── controllers/
+│       │   ├── services/      # pdfValidation, resumeParser, jobTailor, guardrail
+│       │   ├── llm/           # client, prompts/, schemas
+│       │   ├── middleware/    # upload, rateLimit, errorHandler, requestId
+│       │   └── lib/           # logger, errors (AppError), utils
+│       └── tests/
+│           ├── fixtures/      # sample PDFs + JDs (synthetic, no real PII)
+│           ├── unit/
+│           └── integration/
+└── packages/
+    └── shared/                # zod schemas + TS types shared by web & api
+        └── src/
+            ├── resume.schema.ts
+            ├── tailor.schema.ts
+            └── api.types.ts
+```
+
+## 5. Data model (shared zod schemas)
+
+All schemas live in `packages/shared` and are the single source of truth for the API contract **and** for Claude's structured output format.
+
+### 5.1 `Resume`
+
+```ts
+Resume = {
+  basics: {
+    fullName: string
+    headline?: string            // e.g. "Senior Frontend Engineer"
+    email?: string
+    phone?: string
+    location?: string
+    links: { label: string; url: string }[]   // LinkedIn, GitHub, portfolio
+    summary?: string
+  }
+  experience: {
+    id: string                   // stable id, e.g. "exp_1"; used for diffs
+    company: string              // 🔒 locked during tailoring
+    title: string                // 🔒 locked
+    location?: string            // 🔒 locked
+    startDate: string            // 🔒 locked; free text as written ("Jan 2021")
+    endDate?: string             // 🔒 locked; "Present" allowed
+    bullets: { id: string; text: string }[]   // ✏️ may be reworded/reordered/trimmed
+  }[]
+  education: {
+    id: string
+    institution: string          // 🔒
+    degree?: string              // 🔒
+    field?: string               // 🔒
+    startDate?: string; endDate?: string      // 🔒
+    details: { id: string; text: string }[]   // ✏️
+  }[]
+  skills: { id: string; category: string; items: string[] }[]  // ✏️ reorder/regroup; no new items
+  projects: { id: string; name: string; url?: string; description?: string;
+              bullets: { id: string; text: string }[]; technologies: string[] }[]
+  certifications: { id: string; name: string; issuer?: string; date?: string }[]  // 🔒
+  additionalSections: { id: string; title: string; items: string[] }[] // languages, awards, etc.
+}
+```
+
+🔒 = must be identical in the tailored output (checked by the guardrail service).
+✏️ = may be reworded, reordered, or trimmed, but no new facts.
+
+### 5.2 `TailorResult`
+
+```ts
+TailorResult = {
+  tailoredResume: Resume
+  changes: {
+    section: "summary" | "experience" | "skills" | "projects" | "education" | "other"
+    targetId?: string            // bullet/section id
+    type: "reworded" | "reordered" | "removed" | "emphasized"
+    before?: string
+    after?: string
+    reason: string               // short, user-facing explanation
+  }[]
+  keywordAnalysis: {
+    matched: string[]            // JD keywords present in the tailored resume
+    missing: string[]            // JD keywords the candidate cannot honestly claim
+    matchScore: number           // 0-100, computed deterministically on the server
+  }
+  jobSummary: { title?: string; company?: string; seniority?: string; topRequirements: string[] }
+  warnings: string[]             // guardrail findings, e.g. "Possible new skill: Terraform"
+}
+```
+
+## 6. Processing pipeline
+
+### 6.1 Parse: `POST /api/v1/resumes/parse`
+
+```
+1. multer (memoryStorage, limit 5 MB, single field "file")
+2. Validate MIME type + magic bytes ("%PDF-")       → 415 if not PDF
+3. unpdf: page count ≤ 5, not encrypted              → 422 if violated
+4. LLM call #1 (resumeParserService):
+     - PDF sent as a base64 `document` content block (Claude reads text AND layout,
+       works on scanned PDFs too)
+     - Structured output: output_config.format = zodOutputFormat(ResumeSchema)
+     - System prompt: "Extract faithfully. Do not infer, do not embellish.
+       Leave fields empty when absent. Preserve original wording of bullets."
+5. Post-process: assign stable ids (exp_1, exp_1_b1...), trim whitespace
+6. Return { resume, meta: { pages, tokensUsed, durationMs } }
+7. Buffer goes out of scope → garbage collected (nothing persisted)
+```
+
+### 6.2 Tailor: `POST /api/v1/resumes/tailor`
+
+```
+1. Validate body with zod: { resume: Resume, jobDescription: string(100..15000) }
+2. LLM call #2 (jobTailorService), one call that does both:
+     a. Analyze JD → title, seniority, top requirements, keywords
+     b. Produce tailored Resume + changes[] honoring the lock rules
+   Structured output: zodOutputFormat(TailorLlmOutputSchema)
+3. guardrailService (deterministic, no AI):
+     - Locked fields equal original?  → if not, restore original value + add warning
+     - Every tailored skill exists in original skills/bullets/projects text? → else remove + warn
+     - No new experience/education/cert entries?   → else drop + warn
+     - Bullet count per role ≤ original count
+4. keywordService: compute matched/missing + matchScore deterministically
+   (normalized, case-insensitive token/phrase matching of JD keywords vs tailored text)
+5. Return TailorResult
+```
+
+### 6.3 LLM integration details
+
+| Setting | Value | Notes |
+|---|---|---|
+| SDK | `@anthropic-ai/sdk` | Official SDK, no raw `fetch` |
+| Model | `claude-opus-5-5` | Read from `ANTHROPIC_MODEL` env var so it can be changed without a code change |
+| Method | `client.messages.parse()` with `output_config.format: zodOutputFormat(schema)` | Validated, typed JSON back |
+| Thinking | `thinking: { type: "adaptive" }` | Opus 5.5 always thinks. `effort` controls how deep |
+| Effort | Parse: `low` · Tailor: `medium` (to be tuned with evals in Phase 5) | Set explicitly. The default for Opus 5.5 is `medium` |
+| `max_tokens` | 16000 | Non-streaming. A resume JSON fits easily |
+| Refusal fallback | beta `server-side-fallback-2026-07-01` + `fallbacks: "default"` | Always check `stop_reason` (`refusal`, `max_tokens`) before using the output |
+| Retries | SDK default `maxRetries: 2` (429/5xx/network) | Plus one app-level retry if zod validation fails |
+| Timeout | 90 s per request | Frontend shows progress steps meanwhile |
+| Prompt caching | `cache_control` on the stable system prompt | Lowers cost when the same resume is re-tailored |
+| Errors | Typed SDK errors (`Anthropic.RateLimitError`, `Anthropic.APIError`...) mapped to `AppError` codes | See API spec §5 |
+| Cost tracking | Log `usage.input_tokens`, `output_tokens`, `cache_read_input_tokens` per call | Never log the prompt content itself |
+
+Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions (`PARSE_PROMPT_V1`, `TAILOR_PROMPT_V1`). The prompt version is written to the logs so output quality can be tied back to a specific prompt.
+
+**Prompt-injection note:** the JD and the resume are untrusted user text. They go inside clearly delimited tags (`<job_description>…</job_description>`), and the system prompt tells the model to treat them only as data. The guardrail service is the real enforcement layer.
+
+### 6.4 Frontend state & flow
+
+- **Session store** (React context or Zustand): `{ file, parsedResume, jobDescription, tailorResult }`. Kept in memory only. It is optionally mirrored to `sessionStorage` so a page refresh doesn't lose work (wrapped in try/catch).
+- **Routes**: `/` (upload) → `/review` → `/job` → `/result`. Route guards send the user back if the required state is missing.
+- **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE).
+- **PDF export**: `<ResumeDocument resume={tailoredResume} template="classic" />` rendered with `@react-pdf/renderer`'s `pdf().toBlob()` and downloaded as `FirstName_LastName_<Company>.pdf`.
+- **HTML preview** and **PDF template** share one layout spec (section order, fonts) so they look the same.
+
+## 7. Security & privacy
+
+| Concern | Control |
+|---|---|
+| API key exposure | `ANTHROPIC_API_KEY` exists only on the backend, loaded from env and validated at startup |
+| Malicious uploads | MIME type + magic-byte check, 5 MB limit, page limit, memory storage only, no shell-outs |
+| Abuse / cost blowup | `express-rate-limit`: 10 parses and 20 tailors per IP per hour (configurable). Body size limit of 200 KB for JSON |
+| PII in logs | pino `redact` for `req.body`, resume fields, and JD. Only request ID, sizes, timings, and token usage are logged |
+| Data retention | MVP stores nothing. The privacy note in the UI says so |
+| CORS | Allowlist of the frontend origin only |
+| Headers | helmet defaults + strict CSP on the frontend host |
+| Dependency risk | `npm audit` in CI, Dependabot |
+| Prompt injection | Delimited inputs + deterministic guardrails (§6.2 step 3) |
+
+## 8. Error handling strategy
+
+- One `AppError` class: `{ code, httpStatus, userMessage, details? }`.
+- A central Express error middleware turns any thrown error into the standard error response (see the API spec).
+- The frontend maps `error.code` to a friendly message and a suggested action (for example, `PDF_TOO_MANY_PAGES` → "Please upload a resume of 5 pages or fewer").
+
+## 9. Environments & deployment
+
+| Env | Frontend | API | Notes |
+|---|---|---|---|
+| local | `vite dev` :5173 | `tsx watch` :4000 | Vite proxies `/api` → :4000 |
+| preview | Vercel preview per PR | Render preview (optional) | |
+| production | Vercel | Render / Fly.io (Docker) | Env vars set in the provider dashboards |
+
+**Environment variables (API):**
+
+| Var | Example | Required |
+|---|---|---|
+| `PORT` | `4000` | no |
+| `NODE_ENV` | `development` | no |
+| `ANTHROPIC_API_KEY` | `sk-ant-…` | **yes** |
+| `ANTHROPIC_MODEL` | `claude-opus-5-5` | no (default) |
+| `CORS_ORIGIN` | `http://localhost:5173` | yes |
+| `RATE_LIMIT_PARSE_PER_HOUR` | `10` | no |
+| `RATE_LIMIT_TAILOR_PER_HOUR` | `20` | no |
+| `LOG_LEVEL` | `info` | no |
+
+**Frontend:** `VITE_API_BASE_URL` (empty in local dev because the Vite proxy handles it).
+
+## 10. Testing strategy
+
+| Level | Tool | What |
+|---|---|---|
+| Unit | Vitest | Schemas, guardrail rules, keyword scoring, id assignment, error mapping |
+| Integration (API) | Vitest + Supertest | Routes with a **mocked LLM client** (deterministic fixtures) |
+| Component | React Testing Library | Dropzone validation, JD form, change list, error states |
+| E2E | Playwright | Upload fixture PDF → tailor → download (LLM mocked by an API test mode) |
+| AI quality evals | Script + fixture set (Phase 5, started in MVP) | 10–20 synthetic resumes × JDs. Check for fabrication, locked fields, keyword coverage |
+
+The LLM is put behind an `LlmClient` interface so tests can inject a fake. CI never calls the real API.
+
+## 11. Observability (MVP → later)
+
+- MVP: pino JSON logs with requestId, route, status, durationMs, LLM token usage, and prompt version.
+- Later: OpenTelemetry traces, a cost dashboard, Sentry for frontend and backend errors.
+
+## 12. Evolution path (how later phases fit without a rewrite)
+
+| Phase | Architectural change |
+|---|---|
+| 2 | Add `PUT`-style client-side editing (no backend change). Add an SSE variant of tailor for live progress. Add DOCX export (`docx` package, server or client) |
+| 3 | Add PostgreSQL + Drizzle. Tables: `users`, `base_resumes` (JSON column holding `Resume`), `job_targets`, `tailored_resumes`. Add Better Auth. The parse endpoint gains an optional "save" flag |
+| 4 | New services (`coverLetterService`, `jdFetchService`) reuse `llmClient` and the shared schemas. Add a Stripe webhook route |
+| 5 | Job queue (BullMQ + Redis) if long-running work grows. Eval harness in CI. OpenTelemetry |
