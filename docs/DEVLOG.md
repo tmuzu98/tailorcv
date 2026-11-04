@@ -15,16 +15,16 @@
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-03 |
-| Phase | Phase 0: Foundation |
-| Current day (per `07-daily-development-plan.md`) | **Day 2 ✅ complete**. Next session = **Day 3** |
-| Branch | `main` → tracks `origin/main` |
-| Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 1 GitHub setup and Day 2 progress` (local). **2 commits ahead of `origin/main`, not pushed.** User asked: do not push until told |
-| Build / CI | `lint` ✅ · `format:check` ✅ · `typecheck` ✅ (3 workspaces) · api `build` ✅ · web `build` ✅ · tests: none yet (Day 3) · CI not set up (Day 3) |
-| Deployed URLs | — |
-| Local dev | API `cd apps/api && npm run dev` → :4000 · Web `cd apps/web && npm run dev` → :5173 (one combined `npm run dev` arrives on Day 3, PLT-8) |
+| Phase | **Phase 0: Foundation ✅ complete.** Next: Phase 1 (MVP), Milestone 1.1 |
+| Current day (per `07-daily-development-plan.md`) | **Day 3 ✅ complete**. Next session = **Day 4** (shared schemas) |
+| Branch | `main` → tracks `origin/main` (in sync after the Day 3 docs push) |
+| Remote | https://github.com/tmuzu98/tailorcv (**private**, no branch protection, D-35) |
+| Last commit | `docs: log Day 3 and Phase 0 completion` |
+| Build / CI | `npm run check` ✅ (lint, format, typecheck, **13 tests**) · `npm run build` ✅ · **GitHub Actions CI ✅ green** (first run: https://github.com/tmuzu98/tailorcv/actions/runs/41776288280) |
+| Deployed URLs | — (optional on Day 5, otherwise Day 24) |
+| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** Day 3: Vitest + sample tests, root `npm run dev` with `concurrently`, GitHub Actions CI, branch protection, README quickstart. **Ask the user before pushing** (CI needs a push to run).
+**Next action:** Day 4. SHR-1: full `ResumeSchema`, `TailorRequestSchema`, `TailorResultSchema`, `ApiErrorSchema` in `packages/shared` (Tech Design §5), plus SHR-2 synthetic fixtures (2 resumes, 3 JDs) and schema tests. Check that the zod schema features are compatible with Claude structured outputs.
 
 **Blockers:** none.
 
@@ -37,7 +37,7 @@
 | OD-4 | Anthropic API key available? | User provides it in `apps/api/.env` | Day 7 |
 | OD-6 | Optional anonymous analytics in MVP? | No | Day 20 |
 
-_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17._
+_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17. Resolved on Day 3: OD-8 → D-34, OD-9 → D-35._
 
 ---
 
@@ -72,6 +72,15 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-03 | D-25 | Health check in the web uses plain `fetch` + `useEffect` (with AbortController); **TanStack Query is introduced on Day 9** with the real API client | Not worth adding a library for one GET in the skeleton | `apps/web/src/api/health.ts` |
 | 2026-11-03 | D-26 | Web skeleton: React Router `createBrowserRouter` with a shared `AppLayout` (header + temporary step nav, footer with the privacy note + live API status dot). Placeholder pages say which day builds them. Vite dev proxy `/api` → `:4000` (`strictPort` 5173); `VITE_API_BASE_URL` used in production | Matches the routes in Tech Design §6.4. Same-origin in dev, so no CORS needed locally | `apps/web/src/app` |
 | 2026-11-03 | D-27 | Logging: pino-pretty with **local** timestamps in development, raw JSON in production, silent in test | Readable locally. JSON for Render's log viewer | `apps/api/src/lib/logger.ts` |
+| 2026-11-03 | D-28 | Testing: **Vitest 5.1** installed once at the root, with a `vitest.config.ts` per workspace (named projects `shared`, `api`, `web`). Web: **jsdom + Testing Library + jest-dom** (`src/test/setup.ts`). API: **Supertest** against `createApp()` (no port opened). Test location: next to the code (`*.test.ts[x]`) for shared/web, `apps/api/tests/integration/` for API routes. Test/config files are included in `typecheck` | One test runner for the whole repo. Fast. Reuses the Vite config for web tests | `*/vitest.config.ts` |
+| 2026-11-03 | D-29 | `apps/web/src/app/router.tsx` exports `routes` (plus `router`) so tests can mount the real routes in `createMemoryRouter` | Test the real app shell, not a copy | `App.test.tsx` |
+| 2026-11-03 | D-30 | Root scripts: `npm run dev` = **concurrently** (labeled `[api]` / `[web]`, `--kill-others-on-fail`); `npm test` / `npm run build` run all workspaces; **`npm run check`** = lint + format:check + typecheck + test (run before every commit) | One command for daily work. `check` mirrors CI locally | root `package.json` |
+| 2026-11-03 | D-31 | CI: **GitHub Actions**, one job on `ubuntu-latest`, Node from `.nvmrc`, npm cache, `npm ci` → lint → format:check → typecheck → test → build. Runs on push to `main` and on PRs to `main`. `concurrency` cancels superseded runs, `permissions: contents: read`, 15-min timeout. Uses **`actions/checkout@v7`, `actions/setup-node@v7`** (latest, checked via the GitHub API) | Simple, fast, least privilege. Mirrors `npm run check` + build | `.github/workflows/ci.yml` |
+| 2026-11-03 | D-32 | Web `vitest.config.ts` imports `./vite.config.ts` **with the extension** + `allowImportingTsExtensions` in the web tsconfig | Clears Vite's warning that extensionless config imports break under the upcoming native config loader | `apps/web` |
+| 2026-11-03 | D-33 | Verification practice: (a) after writing tests, **deliberately break the code once** to prove they fail (done on the health route: 1 failed, then restored); (b) before pushing CI changes, **simulate CI in a clean copy** (`npm ci` + full pipeline) | Catches tests that can't fail, and lockfile/CI problems before they reach GitHub | Session 5 |
+| 2026-11-03 | D-34 | **Push approved**: commit Day 3 and push all local commits (Day 2 + Day 3) to `origin/main` so CI runs | Needed for the Day 3 exit check (CI green on GitHub). Lifts the Day 2 "don't push yet" hold (resolves OD-8) | — |
+| 2026-11-03 | D-35 | **No branch protection for now.** The repo stays private on the Free plan (protection needs Pro or a public repo, confirmed via API 403). Safety net = CI on every push + `npm run check` before each commit. Revisit if collaborators join or we move to Pro | $0 and private. Two-person pairing on `main` (resolves OD-9) | Day 3 checklist |
+| 2026-11-03 | D-36 | Git auth for github.com goes through the **GitHub CLI** (`gh auth setup-git` → `credential.https://github.com.helper = !gh auth git-credential` in global `~/.gitconfig`, which bypasses the stale macOS Keychain entry). The `gh` token now has the **`workflow`** scope (`gh auth refresh -s workflow`, approved by the user in the browser) | The first Day 3 push failed: "Invalid username or token" (stale Keychain credential), and pushing `.github/workflows/*` needs the `workflow` scope | Known Issues #6 |
 
 ---
 
@@ -86,11 +95,12 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 | # | Severity | Description | Found | Status |
 |---|---|---|---|---|
-| 1 | Low (dev-only) | `npm audit`: 13 moderate, all from `minimatch` ReDoS (GHSA-g3hv-75wg-m249) inside ESLint / typescript-eslint deps. The only "fix" is a breaking downgrade | Day 1 | Accepted (D-15). Recheck on Day 3 and when ESLint updates |
+| 1 | Low (dev-only) | `npm audit`: 13 moderate, all from `minimatch` ReDoS (GHSA-g3hv-75wg-m249) inside ESLint / typescript-eslint deps. The only "fix" is a breaking downgrade | Day 1 | Accepted (D-15). **Rechecked Day 3: unchanged** (still 13 moderate, same root). Recheck when ESLint updates |
 | 2 | Info | `npm run typecheck` errors with "No workspaces found" until workspaces exist | Day 1 | ✅ Resolved Day 2 |
 | 3 | Low | npm 11 warns on every install about blocked install scripts (`esbuild`, `fsevents`). Harmless noise (D-21) | Day 2 | Accepted. If needed: `npm install-scripts approve <pkg>` or `deny <pkg>` to silence |
 | 4 | Medium (process) | **npm quirk:** `npm install <pkgs> --workspace=<path>` sometimes installs but **doesn't save runtime deps** to the workspace `package.json` on the first run (happened 3× on Day 2; dev deps were fine). Also, installing a local workspace package by name (`@tailorcv/shared`) fails because it isn't on the registry | Day 2 | Workaround: **always check the workspace `package.json` after installing**, and re-run if missing. Add local packages by hand as `"@tailorcv/shared": "*"` then `npm install` |
 | 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
+| 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 
 ---
 
@@ -144,21 +154,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Extra (same session):** the user couldn't find the repo on GitHub. Explained that Day 1 is local-only and the push was planned for Day 3. The user chose to do it now (D-18): installed `gh` via Homebrew, the user ran `gh auth login` (browser device flow), and Claude ran `gh repo create tailorcv --private --source=. --push`. Repo: https://github.com/tmuzu98/tailorcv, private, default branch `main`.
 **Next session:** Day 2, PLT-3 (`packages/shared`).
 
-<!--
-TEMPLATE FOR NEW ENTRIES (copy below the last entry):
 
-### YYYY-MM-DD: Session N (Day X: <focus>)
-**Day:** X
-**Done**
-- [task id] what was completed
-**Discussed**
-- key points
-**Decisions:** D-n (add rows to the Decision Log)
-**Issues / blockers**
-- ...
-**Exit check met?** yes / no (why)
-**Next session:** Day Y, first task
--->
 
 ### 2026-11-03: Session 4 (Day 2: Scaffold the three workspaces)
 **Day:** 2 (started the same evening as Day 1, at the user's request)
@@ -185,3 +181,45 @@ TEMPLATE FOR NEW ENTRIES (copy below the last entry):
 **Issues / blockers:** Known Issues #3, #4, #5 logged. None blocking.
 **Exit check met?** ✅ Yes. Claude verified it with curl, and the **user confirmed "API: ok" in the browser**. Committed locally as 2 commits (scaffold code, then docs). Not pushed, per the user's instruction.
 **Next session:** Day 3: Vitest in all workspaces + sample tests (health route via Supertest, shared schema, `<App/>` render), root `npm run dev` (concurrently), GitHub Actions CI, branch protection, README quickstart. (Repo creation already done, D-18.)
+
+### 2026-11-03: Session 5 (Day 3: Tests, single dev command, CI)
+**Day:** 3 (same evening as Days 1–2, at the user's request)
+**Done**
+- [PLT-6] Vitest 5.1 in all workspaces. **13 tests**: shared `HealthResponseSchema` (5), API `GET /health` via Supertest (3: 200 + schema, no `x-powered-by`, 404), web app shell via Testing Library (5: renders, calls health, API down, schema mismatch, 404 page). `routes` exported for memory-router tests.
+- [PLT-8] Root `npm run dev` (concurrently, `[api]` / `[web]` labels). Root `test`, `build`, and the new `check` script.
+- [PLT-7] `.github/workflows/ci.yml` (actions v7). Pushed; **first run green** (all 9 steps).
+- README quickstart, scripts table, project layout.
+- Fixed a Vite warning about the native config loader (D-32).
+- Rechecked `npm audit` (Known Issue #1): unchanged.
+
+**Verified**
+- Mutation check: broke the health route on purpose, the test failed (1 failed / 2 passed), restored from git (D-33).
+- CI simulated in a clean copy (`npm ci` + full pipeline) before pushing.
+- `npm run dev` brings up both apps, and web → API works through the proxy.
+- GitHub Actions run `41776288280`: success on `db657a5`.
+
+**Discussed**
+- Branch protection: confirmed via the GitHub API (403) that it needs **GitHub Pro or a public repo** for private repos on the Free plan. The user chose to **skip it** (D-35).
+- Pushing: the user approved committing Day 3 and pushing all local commits (D-34).
+- Push failure: stale Keychain credential + missing `workflow` scope. Fixed with `gh auth setup-git` (Claude) + `gh auth refresh -s workflow` (user, browser) (D-36).
+
+**Decisions:** D-28 → D-36.
+**Issues / blockers:** Known Issue #6 (resolved). None open.
+**Exit check met?** ✅ Yes. CI is green on GitHub, and a fresh copy installs and passes everything with `npm ci`. **Phase 0 complete.**
+**Next session:** Day 4: shared schemas (SHR-1) + synthetic fixtures (SHR-2).
+
+<!--
+TEMPLATE FOR NEW ENTRIES (copy below the last entry):
+
+### YYYY-MM-DD: Session N (Day X: <focus>)
+**Day:** X
+**Done**
+- [task id] what was completed
+**Discussed**
+- key points
+**Decisions:** D-n (add rows to the Decision Log)
+**Issues / blockers**
+- ...
+**Exit check met?** yes / no (why)
+**Next session:** Day Y, first task
+-->

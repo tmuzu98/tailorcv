@@ -90,14 +90,14 @@
 **Goal:** a safety net is in place. Every future change is linted, type-checked and tested automatically.
 **Tasks:** PLT-6 · PLT-7 · PLT-8
 
-- [ ] Vitest in all 3 workspaces (+ React Testing Library + jsdom in web, Supertest in api)
-- [ ] Sample tests: shared schema test, `GET /health` integration test, `<App/>` render test
-- [ ] Root `npm test`, `npm run build`
-- [ ] `concurrently` → root `npm run dev` starts api + web
+- [x] Vitest in all 3 workspaces (+ React Testing Library + jsdom in web, Supertest in api)
+- [x] Sample tests: shared schema test, `GET /health` integration test, `<App/>` render test _(13 tests)_
+- [x] Root `npm test`, `npm run build` _(+ `npm run check`)_
+- [x] `concurrently` → root `npm run dev` starts api + web
 - [x] Create the GitHub repo and push _(done early on Day 1, D-18: https://github.com/tmuzu98/tailorcv)_
-- [ ] `.github/workflows/ci.yml`: Node 24, `npm ci`, lint, typecheck, test, build
-- [ ] Branch protection on `main` (CI required)
-- [ ] Update the README quickstart
+- [x] `.github/workflows/ci.yml`: Node 24, `npm ci`, lint, typecheck, test, build _(first run green: run 41776288280)_
+- [x] ~~Branch protection on `main`~~ _(skipped by decision D-35: needs GitHub Pro or a public repo)_
+- [x] Update the README quickstart
 
 **Deliverable:** CI is green on GitHub.
 **Exit check:** ✅ **Phase 0 complete.** A fresh clone, then `npm install && npm run dev`, works.
@@ -468,7 +468,7 @@
 |---|---|---|
 | 1 | Kickoff, repo & tooling | ✅ |
 | 2 | Scaffold workspaces | ✅ |
-| 3 | Tests, dev cmd, CI → **Phase 0 done** | ⬜ |
+| 3 | Tests, dev cmd, CI → **Phase 0 done** | ✅ |
 | 4 | Shared schemas | ⬜ |
 | 5 | Errors & security 🛟 → **M1.1** | ⬜ |
 | 6 | PDF upload & validation | ⬜ |
