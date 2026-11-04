@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 import { AppLayout } from "./AppLayout";
 import { UploadPage } from "../pages/UploadPage";
 import { ReviewPage } from "../pages/ReviewPage";
@@ -7,7 +7,8 @@ import { ResultPage } from "../pages/ResultPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 
 // Flow: / (upload) → /review → /job → /result   (Tech Design §6.4)
-export const router = createBrowserRouter([
+// Exported separately so tests can mount the same routes in a memory router.
+export const routes: RouteObject[] = [
   {
     element: <AppLayout />,
     children: [
@@ -18,4 +19,6 @@ export const router = createBrowserRouter([
       { path: "*", element: <NotFoundPage /> },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);
