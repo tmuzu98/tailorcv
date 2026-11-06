@@ -40,15 +40,15 @@ npm run dev                       # api on :4000, web on :5173
 - **TypeScript strict** everywhere. No `any` without an explaining comment.
 - **Schemas first.** Any new API field starts as a change in `packages/shared`.
 - **Backend layering:** `routes → controllers → services → llm/lib`. Controllers handle HTTP only. Services contain the logic and never touch `req`/`res`.
-- **Errors:** throw `AppError` with a catalog code. Never send ad-hoc error JSON.
-- **Logging:** use `req.log` / `logger`. **Never log resume content, JD text, or file buffers.**
+- **Errors:** `throw new AppError("CODE", { message?, details?, cause? })` with a catalog code (`lib/errors.ts`). Never send ad-hoc error JSON; the central `errorHandler` formats everything. `message` and `details` reach the user, so keep them safe and free of resume/JD content. A new error code goes into shared `ERROR_CODES` **and** `ERROR_CATALOG` (the compiler enforces this) **and** API spec §5.
+- **Logging:** use `req.log` / `logger`. **Never log resume content, JD text, or file buffers.** The access log is automatic and minimal (id, method, path, status, time). Don't widen its serializers. If you log an object, log counts/sizes/ids, not content.
 - **Frontend:** feature folders (`features/<name>`). Server calls go only through `api/` hooks. UI primitives live in `components/ui`.
 - **Naming:** `camelCase` for variables and functions, `PascalCase` for components and types, `kebab-case` for folders, `*.schema.ts` for zod schemas, `*.test.ts(x)` next to the code or in `tests/`.
 - **Prompts** are versioned constants. Changing a prompt means bumping its version and noting it in the PR.
 
 ## 5. Git workflow
 
-- `main` is always deployable and protected (CI must pass).
+- `main` is always deployable. Branch protection is **not** enabled (private repo on the Free plan, D-35). The safety net is `npm run check` before every commit + CI on every push.
 - Branches: `feat/<task-id>-short-desc`, `fix/…`, `chore/…`, `docs/…` (e.g. `feat/BE-5-parse-endpoint`).
 - Commits: [Conventional Commits](https://www.conventionalcommits.org/) (`feat(api): add parse endpoint`).
 - One roadmap task per PR when possible. The PR description links the task ID and includes screenshots for UI changes.
@@ -58,6 +58,8 @@ npm run dev                       # api on :4000, web on :5173
 
 - CI **never** calls the real Claude API. Tests use `FakeLlmClient` with fixture responses.
 - Every service gets unit tests. Every route gets an integration test (Supertest).
+- API integration tests build the app with `buildTestApp(envOverrides)` (`apps/api/tests/helpers/app.ts`): silent logger, test env. To test middleware in isolation, mount it on a small `express()` app with `requestId()` + `errorHandler()`.
+- After writing tests, break the code once on purpose to prove they fail (D-33).
 - Guardrail and keyword logic must have ≥ 90% branch coverage. These are the safety-critical parts.
 - Fixtures are synthetic. **Never commit a real person's resume.**
 

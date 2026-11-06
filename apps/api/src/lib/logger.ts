@@ -4,7 +4,7 @@ import type { Env } from "../config/env";
 /**
  * Structured JSON logger. Pretty-printed in development.
  * RULE: never log resume content, job description text, or file buffers.
- * Request-body redaction is added with the request logger on Day 5 (BE-1).
+ * Access logging + redaction live in middleware/requestLogger.ts (D-50).
  */
 export function createLogger(env: Pick<Env, "NODE_ENV" | "LOG_LEVEL">): Logger {
   return pino({

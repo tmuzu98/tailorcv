@@ -17,6 +17,7 @@ AI resume-tailoring web app ("TailorCV", working name): upload a PDF resume + pa
 2. Overwrite the Current Status block (day, branch, last commit, next action, blockers).
 3. Tick the completed checkboxes and update the progress tracker in `docs/07-daily-development-plan.md`.
 4. Add an ADR to `docs/06-architecture-decisions.md` for architectural decisions.
+5. **Doc-sync audit (D-52):** check every doc the session's changes touch (Tech Design, API spec, Dev Guide, ADRs, plan, README, `.env.example`) against the code and decisions. Fix any drift, and list what was fixed in the Session Log entry. Drift not covered by a decision goes to Known Issues.
 
 ## Docs map
 

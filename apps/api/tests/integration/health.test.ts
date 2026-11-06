@@ -1,10 +1,10 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { HealthResponseSchema } from "@tailorcv/shared";
-import { createApp } from "../../src/app";
+import { buildTestApp } from "../helpers/app";
 
 describe("GET /api/v1/health", () => {
-  const app = createApp();
+  const app = buildTestApp();
 
   it("returns 200 with a body matching the shared HealthResponse schema", async () => {
     const res = await request(app).get("/api/v1/health");
@@ -18,10 +18,5 @@ describe("GET /api/v1/health", () => {
   it("does not expose the x-powered-by header", async () => {
     const res = await request(app).get("/api/v1/health");
     expect(res.headers["x-powered-by"]).toBeUndefined();
-  });
-
-  it("returns 404 for unknown routes", async () => {
-    const res = await request(app).get("/api/v1/does-not-exist");
-    expect(res.status).toBe(404);
   });
 });

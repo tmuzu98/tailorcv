@@ -2,6 +2,12 @@
 
 Base URL: `/api/v1` · Content type: JSON unless noted · Auth: none in MVP
 
+**Cross-cutting behaviour (all endpoints):**
+- Every response carries an `X-Request-Id` header (`req_<32 hex>`). A safe incoming `X-Request-Id` (`[A-Za-z0-9_-]{8,64}`) is reused. The same id appears as `error.requestId` in error bodies.
+- JSON bodies are limited to **200 KB** → `413 PAYLOAD_TOO_LARGE`. Malformed JSON → `400 VALIDATION_ERROR`. Any other unreadable request (unsupported charset or `Content-Encoding`, corrupt gzip body) → `400 VALIDATION_ERROR`, never a 500.
+- Rate limits are per IP and per endpoint family (parse: 10/h, tailor: 20/h by default). Over the limit → `429 RATE_LIMITED` with a `Retry-After` header (seconds), `RateLimit`/`RateLimit-Policy` headers, and `details.retryAfterSec`.
+- CORS: only origins in `CORS_ORIGIN` are allowed. `X-Request-Id` and `Retry-After` are exposed to the browser.
+
 ---
 
 ## 1. `GET /api/v1/health`

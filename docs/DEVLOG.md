@@ -14,17 +14,17 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-04 |
-| Phase | Phase 1 (MVP), Milestone 1.1 (contracts & error foundation) |
-| Current day (per `07-daily-development-plan.md`) | **Day 4 ✅ complete (local only)**. Next session = **Day 5** |
-| Branch | `main` → in sync with `origin/main` |
+| Last updated | 2026-11-06 |
+| Phase | Phase 1 (MVP). **Milestone 1.1 ✅ complete**. Next: Milestone 1.2 (upload & parse) |
+| Current day (per `07-daily-development-plan.md`) | **Day 5 ✅ complete (local, uncommitted)**. Next session = **Day 6** |
+| Branch | `main`. Day 5 work is **uncommitted in the working tree**; `origin/main` is still at Day 4 |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 4 push` (pushed). Day 4 code commit `433cb95` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **61 tests**: shared 53, web 5, api 3). Web build ✅. **CI ✅ green on Day 4** (run 41778035944) |
-| Deployed URLs | — (optional on Day 5, otherwise Day 24) |
+| Last commit | `fe4e5d6 docs: log Day 4 push` (pushed). **Day 5 not committed yet**: user said don't push |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **94 tests**: shared 53, web 5, api 36). Builds ✅. **CI simulated in a clean copy (`npm ci` + full pipeline) ✅**. GitHub CI last green on Day 4 (Day 5 not pushed) |
+| Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** Day 5: `AppError` + error catalog (HTTP status per `ERROR_CODES`), requestId, pino-http with redaction, central error handler + 404 (`NOT_FOUND`), helmet, CORS, JSON body limit, rate limiters. Optional: deploy the skeleton.
+**Next action:** First, ask the user whether to commit (and later push) the Day 5 work. Then Day 6: synthetic test PDFs, `middleware/upload.ts` (multer, 5 MB), magic-byte check, `pdfValidationService` (unpdf). Mount `rateLimiters.parse` on the parse route and check the 429 by hand (`RATE_LIMIT_PARSE_PER_HOUR=2`).
 
 **Blockers:** none.
 
@@ -88,6 +88,16 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-04 | D-41 | Fixtures are **typed TS** (not JSON/.txt) in `packages/shared/src/fixtures/`, imported via the subpath **`@tailorcv/shared/fixtures`** and **not** exported from the main entry (verified absent from the web bundle). Added an extra known-good `sampleTailorResultSweFrontend` (honest tailoring: locked fields unchanged, no new skills) | Compile-time drift detection. Works in Vite, tsx and Vitest without loaders. The result fixture is reused later by FakeLlmClient and the UI tests | Day 4 checklist |
 | 2026-11-04 | D-42 | Contract details: file named `api.schema.ts` (not `api.types.ts`); added **`NOT_FOUND` (404)** to the error catalog; parse `meta` = `{pages, durationMs, promptVersion}` (**token usage is logged, never sent to the client**); `TailorResponseSchema` = `TailorResultSchema` + `meta` | Contains schemas, not just types. Day 5's 404 handler needs a code. Don't leak cost data to the client | API spec §5 updated |
 | 2026-11-04 | D-43 | `TailorRequest`: JD is **trimmed, then** checked for 100–15,000 chars (constants exported); `options` optional, `tone` ∈ professional/concise/impactful (default professional). Separate `TailorRequestInput` (client) and `TailorRequest` (server, after defaults) types | Whitespace can't pass the minimum. The web form can reuse the same limits | `tailor.schema.ts` |
+| 2026-11-05 | D-44 | Rate limits per IP stay at **10 parses / 20 tailors per hour** (Tech Design §7), configurable through `RATE_LIMIT_PARSE_PER_HOUR` / `RATE_LIMIT_TAILOR_PER_HOUR` | User choice. Tailoring gets more because users re-tailor one resume for several JDs | Day 5 |
+| 2026-11-05 | D-45 | **Deploying the skeleton is deferred to Day 24** (the optional Day 5 item) | User choice: keep Day 5 focused on code | Day 5 checklist |
+| 2026-11-05 | D-46 | CORS = **exact allowlist** from `CORS_ORIGIN` (comma-separated URLs, validated with zod, no wildcards). Vercel preview URLs are **not** allowed. Methods `GET, POST`; `X-Request-Id` and `Retry-After` exposed. Name kept as `CORS_ORIGIN` (not renamed) to avoid churn | User choice: the strictest option | Tech Design §9, API spec |
+| 2026-11-05 | D-47 | `createApp({ env, logger })` takes its dependencies as arguments (no globals). Tests use `tests/helpers/app.ts → buildTestApp(envOverrides)`, built on the new side-effect-free `parseEnv()` | Testable with any env; the LLM client gets injected the same way on Day 7 | ADR-010 |
+| 2026-11-05 | D-48 | Error contract: `AppError(code, { message?, details?, cause? })` + `ERROR_CATALOG` typed `Record<ErrorCode, …>` (a missing code fails to compile). Central `errorHandler`: body-parser `entity.too.large` → `PAYLOAD_TOO_LARGE`, `entity.parse.failed` → `VALIDATION_ERROR`, anything unknown → `INTERNAL_ERROR` (generic message; real error only in the log at error level). `notFoundHandler` catches all unmatched paths | One shape for every failure (API spec §4). Nothing internal leaks | ADR-010 |
+| 2026-11-05 | D-49 | Request id: `req_<32 hex>` (from `randomUUID`), echoed in `X-Request-Id` and `error.requestId`. An incoming id is reused only if it matches `[\w-]{8,64}` | Users can quote it in bug reports. The check prevents log injection | `middleware/requestId.ts` |
+| 2026-11-05 | D-50 | Access log (pino-http): **minimal serializers** (`req: {id, method, url without query}`, `res: {statusCode}`, `responseTime`) + redaction paths (auth/cookie headers, `body`, `*.resume`, `*.jobDescription`, `*.buffer`). `/health` not logged. Levels: 5xx error, 4xx warn | User approved after the manual check showed about 40 noisy lines per request. Headers/query could carry user data | `middleware/requestLogger.ts` |
+| 2026-11-05 | D-51 | Rate limiters come from a factory (`createRateLimiters(env)` → `{ parse, tailor }`), **applied per route** (not globally), in-memory store, `standardHeaders: draft-8`, the handler forwards `AppError("RATE_LIMITED", { details: { retryAfterSec } })`. New env `TRUST_PROXY` (0 locally, **1 on Render**) | Independent budgets per endpoint family. One Render instance means memory is enough. The correct client IP is needed behind the proxy | ADR-010 |
+| 2026-11-06 | D-52 | **Doc-sync audit at every wrap-up:** before closing a session, check every doc the change touches (Tech Design, API spec, Dev Guide, ADRs, plan, README, `.env.example`) against the code and decisions, fix any drift, and log the audit in the session entry. Older drift that is found gets fixed if a decision already covers it, otherwise it goes to Known Issues | User request: "log everything in our devlog… document all the decisions and the changes in our respective md files" | This file |
+| 2026-11-06 | D-53 | `errorHandler` maps **any client error flagged by Express/body-parser** (`expose: true` + 4xx `status`) to `400 VALIDATION_ERROR`, on top of the explicit `entity.too.large` / `entity.parse.failed` mappings. Errors that only carry a `status` (no `expose`, e.g. an Anthropic SDK 401/429) stay `INTERNAL_ERROR`. Health-check log skipping ignores the query string | Found in the final verification: an unsupported charset, unknown encoding or corrupt gzip returned **500** and was logged as a server error. `expose` keeps upstream failures from being blamed on the user | `middleware/errorHandler.ts`, API spec |
 
 ---
 
@@ -95,6 +105,8 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 - ESLint import-order plugin (e.g. `eslint-plugin-import-x` or `simple-import-sort`). Deferred on Day 1 (D-13).
 - Frontend "warm-up" ping to `/api/v1/health` on page load to hide Render free-tier cold starts (ADR-009). Do it on Day 10 or Day 24.
+- Shared rate-limit store (e.g. Redis) if the API ever runs on more than one instance (ADR-010).
+- If Vercel preview deploys need to call the API: add a preview-URL regex to the CORS allowlist (rejected for now, D-46).
 
 ---
 
@@ -108,6 +120,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 4 | Medium (process) | **npm quirk:** `npm install <pkgs> --workspace=<path>` sometimes installs but **doesn't save runtime deps** to the workspace `package.json` on the first run (happened 3× on Day 2; dev deps were fine). Also, installing a local workspace package by name (`@tailorcv/shared`) fails because it isn't on the registry | Day 2 | Workaround: **always check the workspace `package.json` after installing**, and re-run if missing. Add local packages by hand as `"@tailorcv/shared": "*"` then `npm install` |
 | 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
+| 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
 
 ---
 
@@ -240,6 +253,72 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none.
 **Exit check met?** ✅ Tests green, and the API spec matches the schemas. Committed and pushed. CI green.
 **Next session:** Day 5: error foundation + security middleware (BE-1, BE-2).
+
+### 2026-11-05: Session 7 (Day 5: Error foundation & security middleware)
+**Day:** 5 (started late on 2026-11-05, finished after midnight)
+**User instructions this session:** ask for input where needed. Wrap up at the end, but **don't push anything**.
+
+**Done**
+- [Decisions] Asked the user: rate limits (keep 10/20, D-44), deploy (defer to Day 24, D-45), CORS (exact list, D-46).
+- [BE-1] `lib/errors.ts` (`AppError`, `ERROR_CATALOG`), `middleware/requestId.ts`, `middleware/requestLogger.ts` (pino-http, redaction, minimal serializers), `middleware/errorHandler.ts` (`notFoundHandler` + central `errorHandler`).
+- [BE-2] helmet, CORS allowlist, `express.json({ limit: "200kb" })`, `trust proxy`, `middleware/rateLimit.ts` (`createRateLimiter`, `createRateLimiters`).
+- `config/env.ts`: `CORS_ORIGIN` list, `TRUST_PROXY`, `RATE_LIMIT_PARSE_PER_HOUR`, `RATE_LIMIT_TAILOR_PER_HOUR`, `parseEnv()`. `.env.example` updated. `createApp({ env, logger })`.
+- Installed `helmet` 8.3, `cors` 2.8 (+ `@types/cors`), `pino-http` 11.0, `express-rate-limit` 8.7. Runtime deps were saved correctly (Known Issue #4 checked).
+- Tests: API went from 3 to **31** (errors catalog/AppError, env, 404, error handler incl. async + non-Error throwables, body limit/malformed JSON, request id, helmet, CORS incl. preflight, rate limit + independent budgets, log redaction captured from real log output, minimal log line). Total **89**.
+- Docs: API spec (cross-cutting behaviour: request id, body limit, rate limits, CORS), Tech Design env table, ADR-010, README status, Day 5 checklist + tracker.
+- **Doc-sync audit** (the user asked for everything to be documented, D-52). Fixed drift:
+  - Tech Design §4 repo tree: `requestLogger`, `tests/helpers/`, unit tests next to the code (removed `tests/unit/`).
+  - Tech Design §7: rate-limit, PII-in-logs, CORS and headers rows now match D-46/D-50/D-51.
+  - Tech Design §8: `AppError` shape (`status`/`message`, not `httpStatus`/`userMessage`), catalog, body-parser mapping, 404.
+  - Tech Design §11: the access-log fields we actually log.
+  - Dev Guide §4: how to throw `AppError`, adding a new error code (shared + catalog + spec), logging rules.
+  - Dev Guide §5: removed "main is protected" (contradicted D-35).
+  - Dev Guide §6: `buildTestApp` helper, testing middleware in isolation, deliberately break code once (D-33).
+  - Logged Known Issue #7 (Tech Design promises `npm audit` in CI + Dependabot; neither exists).
+
+**Verified**
+- Mutation check (D-33): removed the redaction and broke the 404 handler → 3 tests failed, restored → green.
+- Built `dist/server.js` and ran it in production mode: 404 + 250 KB body return the correct JSON, JSON logs.
+- Manual checks against `npm run dev` (the user asked for them): health, 404, custom/unsafe request id, malformed JSON (400), 250 KB (413) vs 150 KB (passes), CORS allowed/foreign/preflight, auth + cookie shown as `[REDACTED]`, no secret strings anywhere in the log, Vite proxy → API, web app 200. **All passed.**
+- Found during the manual check: access logs were about 40 lines per request (all helmet response headers, query, params). Trimmed with the user's approval (D-50) and re-verified (about 9 lines, no query string).
+- Not testable by hand yet: rate limiting (no parse/tailor routes until Day 6+). Covered by automated tests.
+
+**Discussed**
+- How to test the changes: automated (`npm run check`, watch mode, deliberately break the code), curl against the dev server, browser.
+- Corrected a mix-up: Claude first said "20 parses / 10 tailors"; the Tech Design says 10 parses / 20 tailors.
+
+**Decisions:** D-44 → D-53. ADR-010.
+**Issues / blockers:** none blocking. Known Issue #7 (doc drift) logged.
+**Final verification pass** (the user asked to test everything once more):
+- CI simulated in a clean copy (`git ls-files` → `npm ci` → lint, format:check, typecheck, test, build): all ✅.
+- `npm audit --omit=dev`: **0 vulnerabilities**. Full audit: 10 moderate, all the known dev-only `minimatch` (Known Issue #1, down from 13). No lint warnings. New runtime deps saved correctly (Known Issue #4 checked).
+- Edge-case probes (a temporary test, deleted afterwards) found 🐛 **a bug: client-caused request errors returned 500 `INTERNAL_ERROR`** (unsupported charset, unknown `Content-Encoding`, corrupt gzip), and a minor one: `/health?x=1` was still logged. Both fixed test-first (the new tests failed first, then passed), plus a hardening change so upstream SDK errors with a `status` aren't treated as client errors (D-53). 5 new tests → api 36, total **94**.
+- Correct after the fix: malformed URL → 404, `HEAD /health` → 200, `DELETE /health` → 404, a spoofed `X-Forwarded-For` is ignored with `TRUST_PROXY=0`.
+- Dev servers smoke-tested from the repo root: web `/` and `/review` 200, the Vite proxy works (health 200, 404 JSON), CORS allowed, no errors in the logs. (A first attempt started only the API because the shell's working directory had drifted to `apps/api`; this was a tooling slip, not a code issue.)
+- Docs updated for the fix: API spec (unreadable requests → 400), Tech Design §8.
+
+**Full manual test pass** (the user asked for it after the automated pass). Against `npm run dev` from the repo root, all ✅:
+- A. Health + helmet headers (nosniff, X-Frame-Options, HSTS, CSP, Referrer-Policy, COOP), no `x-powered-by`.
+- B. 404 JSON for `/api/v1/nope`, `/` and `DELETE /health`. Header request id = body request id.
+- C. Request id: safe incoming reused, `<script>` and too-short ids replaced, unique per request.
+- D. Body handling: malformed JSON / bad charset / unknown encoding / corrupt gzip → 400 `VALIDATION_ERROR`. Valid gzip JSON parsed. 199 KB passes, 201 KB → 413.
+- E. CORS: allowed origin + exposed headers. A foreign origin and the lookalike `localhost:5173.evil.com` get no allow-origin. Preflight 204 with `GET,POST`.
+- F. Web `/`, `/review`, `/job`, `/result`, unknown page → 200 (SPA). Vite proxy → API health + 404 JSON.
+- G. Logs: 0 secret strings (token, cookie, resume name, JD text, query email), health checks not logged, 0 ERROR lines, minimal access-log entries.
+- H. Rate limits by hand (a throwaway server with the real middleware, limits 3/2, deleted afterwards): 4th parse → 429 + `Retry-After: 3600` + `RateLimit` header + `RATE_LIMITED` JSON; tailor budget independent. **`TRUST_PROXY=0`: a spoofed `X-Forwarded-For` is ignored (client "B" on the same machine is also blocked, so spoofing can't bypass the limit). `TRUST_PROXY=1`: per real client IP.** Added a warning to `.env.example`: never set `TRUST_PROXY` > 0 without a real proxy in front.
+- I. Env validation: `CORS_ORIGIN=*`, an invalid second origin, `RATE_LIMIT_PARSE_PER_HOUR=0`, `TRUST_PROXY=abc` → the server refuses to start (exit 1, clear message). Production build with two origins + `TRUST_PROXY=1`: health, second origin allowed, 404, JSON logs, graceful SIGTERM.
+- Test-script slips (not app bugs): zsh doesn't split an unquoted `$J` (curl sent a malformed header → Node's bare 400), macOS has no `timeout`, and a script outside the repo can't resolve `express`. Each was fixed and re-run.
+- The user interrupted the docs step to ask whether we were stuck (we weren't: all tests had passed), then approved it. The interrupted write had already saved the `.env.example` warning and this entry; only this note was added afterwards.
+
+**Exit check met?** ✅ **Milestone 1.1 complete**: every error leaves the API in the standard shape, and the API is protected against basic abuse. `npm run check` green, the clean-copy CI simulation green, the full manual pass green. **Not committed or pushed** (user instruction).
+**Next session:** ask about committing/pushing the Day 5 work, then Day 6 (PDF upload & validation, BE-3/BE-4).
+
+### 📅 Week 1 summary (Days 1–5, 2026-11-03 → 2026-11-06)
+- **Delivered:** monorepo (npm workspaces, strict TS, ESLint/Prettier), API skeleton (Express 5, zod env, pino), web skeleton (React 19, Vite 8, Tailwind 4, Router), Vitest in all workspaces, single `npm run dev`, GitHub Actions CI, private GitHub repo. Shared zod contract (resume, tailor, API envelopes, error codes, locked fields) with synthetic fixtures and a structured-outputs compatibility test. Error contract + security middleware. **Phase 0 + Milestone 1.1 done on schedule.**
+- **Numbers:** 94 tests (shared 53, web 5, api 36). 53 decisions logged, 10 ADRs. CI green through Day 4.
+- **Went well:** contracts first (shared schemas + typed error catalog catch drift at compile time). Deliberately breaking code proved the tests can fail every day. Manual checks found real noise (the log size) that tests didn't.
+- **Watch out for:** npm workspace install quirk (Known Issue #4); the `npm audit` dev-only findings (#1); Render cold starts and `TRUST_PROXY=1` when deploying; the rate-limit store is per instance.
+- **Next week (Days 6–11):** PDF upload & validation → LLM client (needs the Anthropic API key, **OD-4**, by Day 7) → AI parsing → parse endpoint → upload & review pages → **Milestone 1.2**.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

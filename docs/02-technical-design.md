@@ -109,12 +109,13 @@ resumeParser/
 │       │   ├── controllers/
 │       │   ├── services/      # pdfValidation, resumeParser, jobTailor, guardrail
 │       │   ├── llm/           # client, prompts/, schemas
-│       │   ├── middleware/    # upload, rateLimit, errorHandler, requestId
-│       │   └── lib/           # logger, errors (AppError), utils
+│       │   ├── middleware/    # requestId, requestLogger, errorHandler (+404), rateLimit, upload
+│       │   └── lib/           # logger, errors (AppError + ERROR_CATALOG), utils
+│       │                      # unit tests live next to the code (*.test.ts, D-28)
 │       └── tests/
 │           ├── fixtures/      # sample PDFs + JDs (synthetic, no real PII)
-│           ├── unit/
-│           └── integration/
+│           ├── helpers/       # buildTestApp(envOverrides) etc.
+│           └── integration/   # Supertest route/middleware tests
 └── packages/
     └── shared/                # zod schemas + TS types shared by web & api
         └── src/
@@ -267,18 +268,18 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 |---|---|
 | API key exposure | `ANTHROPIC_API_KEY` exists only on the backend, loaded from env and validated at startup |
 | Malicious uploads | MIME type + magic-byte check, 5 MB limit, page limit, memory storage only, no shell-outs |
-| Abuse / cost blowup | `express-rate-limit`: 10 parses and 20 tailors per IP per hour (configurable). Body size limit of 200 KB for JSON |
-| PII in logs | pino `redact` for `req.body`, resume fields, and JD. Only request ID, sizes, timings, and token usage are logged |
+| Abuse / cost blowup | `express-rate-limit`: 10 parses and 20 tailors per IP per hour (`RATE_LIMIT_PARSE_PER_HOUR` / `RATE_LIMIT_TAILOR_PER_HOUR`), applied per route family, in-memory store (single instance), `429 RATE_LIMITED` + `Retry-After`. `trust proxy` = `TRUST_PROXY` (1 on Render) so the real client IP is used. JSON body limit 200 KB → `413 PAYLOAD_TOO_LARGE` |
+| PII in logs | Access log uses minimal serializers: `req {id, method, url without query}`, `res {statusCode}`, `responseTime`. No headers, query or body. pino `redact` as a second line of defence (auth/cookie headers, `body`, `*.resume`, `*.jobDescription`, `*.buffer`). Token usage is added on Day 7 |
 | Data retention | MVP stores nothing. The privacy note in the UI says so |
-| CORS | Allowlist of the frontend origin only |
-| Headers | helmet defaults + strict CSP on the frontend host |
+| CORS | Exact allowlist from `CORS_ORIGIN` (comma-separated URLs, no wildcards, preview URLs not allowed), methods `GET, POST`, exposes `X-Request-Id` and `Retry-After` |
+| Headers | API: helmet defaults, `x-powered-by` disabled. Frontend host: strict CSP (Day 24) |
 | Dependency risk | `npm audit` in CI, Dependabot |
 | Prompt injection | Delimited inputs + deterministic guardrails (§6.2 step 3) |
 
 ## 8. Error handling strategy
 
-- One `AppError` class: `{ code, httpStatus, userMessage, details? }`.
-- A central Express error middleware turns any thrown error into the standard error response (see the API spec).
+- One `AppError` class (`apps/api/src/lib/errors.ts`): `new AppError(code, { message?, details?, cause? })` → `{ code, status, message, details }`. Status and default user message come from `ERROR_CATALOG`, typed `Record<ErrorCode, …>` against the shared `ERROR_CODES` (a missing entry fails to compile). `cause` is logged, never sent.
+- A central `errorHandler` turns any thrown error into the standard error response (API spec §4), with `requestId`. body-parser errors map to `PAYLOAD_TOO_LARGE` / `VALIDATION_ERROR`, and any other client error that Express/body-parser flags with `expose: true` + a 4xx status becomes `VALIDATION_ERROR` (third-party errors that merely carry a `status`, such as an SDK 401, stay `INTERNAL_ERROR`). Anything unknown becomes `INTERNAL_ERROR` with a generic message, and the real error is logged at error level. `notFoundHandler` answers every unmatched path with `NOT_FOUND`. See ADR-010.
 - The frontend maps `error.code` to a friendly message and a suggested action (for example, `PDF_TOO_MANY_PAGES` → "Please upload a resume of 5 pages or fewer").
 
 ## 9. Environments & deployment
@@ -297,7 +298,8 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 | `NODE_ENV` | `development` | no |
 | `ANTHROPIC_API_KEY` | `sk-ant-…` | **yes** |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | no (default) |
-| `CORS_ORIGIN` | `http://localhost:5173` | yes |
+| `CORS_ORIGIN` | `http://localhost:5173,https://<app>.vercel.app` (comma-separated exact origins) | no (default localhost) |
+| `TRUST_PROXY` | `1` on Render, `0` locally | no |
 | `RATE_LIMIT_PARSE_PER_HOUR` | `10` | no |
 | `RATE_LIMIT_TAILOR_PER_HOUR` | `20` | no |
 | `LOG_LEVEL` | `info` | no |
@@ -318,7 +320,7 @@ The LLM is put behind an `LlmClient` interface so tests can inject a fake. CI ne
 
 ## 11. Observability (MVP → later)
 
-- MVP: pino JSON logs with requestId, route, status, durationMs, LLM token usage, and prompt version.
+- MVP: pino JSON logs. Access log (Day 5): `req.id` (= `X-Request-Id`), `req.method`, `req.url` (path only), `res.statusCode`, `responseTime` (ms). 4xx → warn, 5xx → error, `/health` not logged. LLM token usage and prompt version are added on Day 7–8.
 - Later: OpenTelemetry traces, a cost dashboard, Sentry for frontend and backend errors.
 
 ## 12. Evolution path (how later phases fit without a rewrite)

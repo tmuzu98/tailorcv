@@ -5,7 +5,7 @@ import { createLogger } from "./lib/logger";
 
 const env = loadEnv();
 const logger = createLogger(env);
-const app = createApp();
+const app = createApp({ env, logger });
 
 const server = app.listen(env.PORT, () => {
   logger.info(

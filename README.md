@@ -4,7 +4,7 @@ Upload a PDF resume, paste a job description, and get back an honest, ATS-friend
 
 **Stack:** React 19 + Vite + Tailwind (frontend) · Node.js 24 + Express 5 (backend) · TypeScript + zod (shared) · Claude API (AI)
 
-> 🚧 **Status:** Phase 0 (foundation) complete: skeleton app, tests and CI. Phase 1 (MVP) starts next. Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
+> 🚧 **Status:** Week 1 done. Phase 0 (skeleton, tests, CI) and Milestone 1.1 (shared schemas, error contract, security middleware) complete. Next: PDF upload & parsing (Week 2). Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
 ## Quickstart
 

@@ -125,14 +125,14 @@
 **Goal:** the API handles errors consistently and is protected against basic abuse.
 **Tasks:** BE-1 · BE-2 · (PLT-9 optional)
 
-- [ ] `lib/errors.ts`: `AppError` + error catalog (codes → HTTP status + user message)
-- [ ] `middleware/requestId.ts`, pino-http with **redaction** of body fields
-- [ ] Central `errorHandler` middleware → standard error JSON (API spec §4), plus a 404 handler
-- [ ] helmet, CORS allowlist from env, `express.json({ limit: "200kb" })`
-- [ ] Rate limiters (parse/tailor limits from env) → `RATE_LIMITED` with Retry-After
-- [ ] Tests: unknown route → 404 JSON, thrown AppError → correct shape, rate limit triggers
-- [ ] *(Optional)* Deploy the skeleton to Vercel + Render and record the URLs in DEVLOG
-- [ ] Week 1 review: update the README status, write the DEVLOG week summary
+- [x] `lib/errors.ts`: `AppError` + error catalog (codes → HTTP status + user message)
+- [x] `middleware/requestId.ts`, pino-http with **redaction** of body fields
+- [x] Central `errorHandler` middleware → standard error JSON (API spec §4), plus a 404 handler
+- [x] helmet, CORS allowlist from env, `express.json({ limit: "200kb" })`
+- [x] Rate limiters (parse/tailor limits from env) → `RATE_LIMITED` with Retry-After
+- [x] Tests: unknown route → 404 JSON, thrown AppError → correct shape, rate limit triggers
+- [ ] *(Optional)* Deploy the skeleton to Vercel + Render and record the URLs in DEVLOG. **Deferred to Day 24** (user decision, D-45)
+- [x] Week 1 review: update the README status, write the DEVLOG week summary
 
 **Deliverable:** hardened API skeleton.
 **Exit check:** ✅ **Milestone 1.1 complete.**
@@ -470,7 +470,7 @@
 | 2 | Scaffold workspaces | ✅ |
 | 3 | Tests, dev cmd, CI → **Phase 0 done** | ✅ |
 | 4 | Shared schemas | ✅ |
-| 5 | Errors & security 🛟 → **M1.1** | ⬜ |
+| 5 | Errors & security 🛟 → **M1.1** | ✅ |
 | 6 | PDF upload & validation | ⬜ |
 | 7 | LLM client | ⬜ |
 | 8 | AI resume parsing | ⬜ |
