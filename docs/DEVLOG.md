@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 6 ✅ complete (local, uncommitted)**. Next session = **Day 7** |
-| Branch | `main`. Day 6 work is **uncommitted in the working tree**; `origin/main` is at Day 5 (`208fe7b`) |
+| Current day (per `07-daily-development-plan.md`) | **Day 6 ✅ complete (pushed)**. Next session = **Day 7** |
+| Branch | `main` → in sync with `origin/main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `208fe7b docs: log Day 5 push` (pushed). Day 6 not committed yet |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **125 tests**: shared 53, web 5, api 67). Clean-copy CI simulation ✅. GitHub CI last green on Day 5 |
+| Last commit | `docs: log Day 6 push` (pushed). Day 6 code commit `90db1fe` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **125 tests**: shared 53, web 5, api 67). Clean-copy CI simulation ✅. **GitHub CI ✅ green on Day 6** (run 42298188550) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** Ask whether to commit/push Day 6. Then Day 7: the LLM client (AI-1): `LlmClient` interface + Anthropic implementation + `FakeLlmClient`. **Needs the Anthropic API key (OD-4)** in `apps/api/.env`.
+**Next action:** Day 7: the LLM client (AI-1): `LlmClient` interface + Anthropic implementation + `FakeLlmClient`. **Needs the Anthropic API key (OD-4)** in `apps/api/.env`.
 
 **Blockers:** none. OD-4 (API key) is needed at the start of Day 7.
 
@@ -105,6 +105,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-58 | Upload/validation rules: **(a)** the `%PDF-` signature (first 1024 bytes, per the PDF spec) is the real type gate; the declared type is only a pre-check (`application/pdf`, `application/x-pdf`, `application/octet-stream` allowed, others → 415 + `details.declaredType`). **(b)** Damaged PDFs → `UNSUPPORTED_FILE_TYPE` with a "damaged" message (no new error code). **(c)** A 0-byte file → `FILE_MISSING` ("empty"). **(d)** Wrong field / more than one file / malformed multipart (busboy) → `VALIDATION_ERROR`, never 500. **(e)** `FILE_TOO_LARGE` returns `details.maxBytes`. **(f)** Rate limiter before multer. **(g)** multer limits: 1 file, 10 fields, 20 parts; memory storage only. **(h)** Validation only opens the document and reads the page count (no text extraction yet), passes pdf.js a copy of the buffer, and always destroys the loading task | Cheap, strict, and every client mistake gets a 4xx (lesson from D-53) | API spec §2, Tech Design §6.1 |
 | 2026-11-06 | D-59 | Rate limiters are now **created per app instance** inside `createApp` (`createRateLimiters(env)` → `createResumesRouter({ limiters })`); `AppDeps.env` includes the rate-limit vars | Each test app gets fresh budgets; the tailor router reuses the same object on Day 15 | `app.ts` |
 | 2026-11-06 | D-60 | pdf.js runs with **`verbosity: 0`** (errors only) in `validatePdf` | Found in the pre-push manual pass: pdf.js printed a raw `Warning: Indexing all PDF objects` line to stdout while recovering `corrupt.pdf`, which breaks the JSON-only production logs. A test spies on `console.*` and fails if anything is printed (it failed before the fix) | `pdfValidationService.ts` |
+| 2026-11-06 | D-61 | **Push approved for Day 6**: committed as `90db1fe` and pushed to `origin/main` | User request after the pre-push manual pass ("yes push it") | — |
 
 ---
 
@@ -352,7 +353,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - pdf-lib is unmaintained, so it's used only as a dev dependency for the generator.
 - The stub returns 200, not 501, so the shared error contract stays unchanged.
 
-**Decisions:** D-55 → D-60.
+**Decisions:** D-55 → D-61.
 **Issues / blockers:** none. **OD-4 (Anthropic API key) is needed at the start of Day 7.**
 **Pre-push manual test pass** (the user asked to test everything by hand before pushing):
 - **Production build** (`node dist/server.js`, the first time unpdf ran from the tsup build): every fixture gives the right code. tsup keeps npm packages external (19 KB bundle), so Render's `npm install` provides unpdf.
@@ -362,8 +363,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - **Clean-copy CI simulation** (`npm ci` + full pipeline): all ✅, fixtures present. `npm audit --omit=dev`: 0 vulnerabilities.
 - Script slips (not app bugs): a bare `wait` also waited on the background server (hung, stopped), and zsh didn't split an unquoted `$PIDS` (counted before all uploads finished, re-run with `xargs -P`). Afterwards the checks went into a script file with explicit PASS/FAIL comparisons, to avoid more quoting slips.
 
-**Exit check met?** ✅ Every bad fixture returns its expected error code in the tests, by hand, and in the production build. API 67 tests, total **125**. **Not committed yet.**
-**Next session:** ask about committing/pushing Day 6, then Day 7: LLM client (AI-1).
+**Exit check met?** ✅ Every bad fixture returns its expected error code in the tests, by hand, and in the production build. API 67 tests, total **125**.
+
+**Push:** the user asked whether everything works with zero errors. Answered yes for everything built, and listed what isn't covered yet: GitHub CI not yet run on Day 6, only synthetic PDFs (real Word/Docs/Canva exports and scanned PDFs untested), the parse route is a stub, nothing deployed, Known Issues #1 and #7 open. The user approved the push (D-61). Staged diff scanned for secrets (none, no `.env`). Committed `90db1fe feat(api): add PDF upload and validation with parse stub (Day 6)` and pushed. **GitHub CI green** (run 42298188550, all steps). Then pushed this DEVLOG update as `docs: log Day 6 push`.
+**Next session:** Day 7: LLM client (AI-1). Get the Anthropic API key first (OD-4).
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):
