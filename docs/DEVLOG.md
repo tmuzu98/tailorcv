@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP). **Milestone 1.1 ✅ complete**. Next: Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 5 ✅ complete (local, uncommitted)**. Next session = **Day 6** |
-| Branch | `main`. Day 5 work is **uncommitted in the working tree**; `origin/main` is still at Day 4 |
+| Current day (per `07-daily-development-plan.md`) | **Day 5 ✅ complete (pushed)**. Next session = **Day 6** |
+| Branch | `main` → in sync with `origin/main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `fe4e5d6 docs: log Day 4 push` (pushed). **Day 5 not committed yet**: user said don't push |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **94 tests**: shared 53, web 5, api 36). Builds ✅. **CI simulated in a clean copy (`npm ci` + full pipeline) ✅**. GitHub CI last green on Day 4 (Day 5 not pushed) |
+| Last commit | `docs: log Day 5 push` (pushed). Day 5 code commit `c1b731d` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **94 tests**: shared 53, web 5, api 36). Builds ✅. **CI simulated in a clean copy (`npm ci` + full pipeline) ✅**. **GitHub CI ✅ green on Day 5** (run 42294164955) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
 
-**Next action:** First, ask the user whether to commit (and later push) the Day 5 work. Then Day 6: synthetic test PDFs, `middleware/upload.ts` (multer, 5 MB), magic-byte check, `pdfValidationService` (unpdf). Mount `rateLimiters.parse` on the parse route and check the 429 by hand (`RATE_LIMIT_PARSE_PER_HOUR=2`).
+**Next action:** Day 6: synthetic test PDFs, `middleware/upload.ts` (multer, 5 MB), magic-byte check, `pdfValidationService` (unpdf). Mount `rateLimiters.parse` on the parse route and check the 429 by hand (`RATE_LIMIT_PARSE_PER_HOUR=2`).
 
 **Blockers:** none.
 
@@ -98,6 +98,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-05 | D-51 | Rate limiters come from a factory (`createRateLimiters(env)` → `{ parse, tailor }`), **applied per route** (not globally), in-memory store, `standardHeaders: draft-8`, the handler forwards `AppError("RATE_LIMITED", { details: { retryAfterSec } })`. New env `TRUST_PROXY` (0 locally, **1 on Render**) | Independent budgets per endpoint family. One Render instance means memory is enough. The correct client IP is needed behind the proxy | ADR-010 |
 | 2026-11-06 | D-52 | **Doc-sync audit at every wrap-up:** before closing a session, check every doc the change touches (Tech Design, API spec, Dev Guide, ADRs, plan, README, `.env.example`) against the code and decisions, fix any drift, and log the audit in the session entry. Older drift that is found gets fixed if a decision already covers it, otherwise it goes to Known Issues | User request: "log everything in our devlog… document all the decisions and the changes in our respective md files" | This file |
 | 2026-11-06 | D-53 | `errorHandler` maps **any client error flagged by Express/body-parser** (`expose: true` + 4xx `status`) to `400 VALIDATION_ERROR`, on top of the explicit `entity.too.large` / `entity.parse.failed` mappings. Errors that only carry a `status` (no `expose`, e.g. an Anthropic SDK 401/429) stay `INTERNAL_ERROR`. Health-check log skipping ignores the query string | Found in the final verification: an unsupported charset, unknown encoding or corrupt gzip returned **500** and was logged as a server error. `expose` keeps upstream failures from being blamed on the user | `middleware/errorHandler.ts`, API spec |
+| 2026-11-06 | D-54 | **Push approved for Day 5**: committed as `c1b731d` and pushed to `origin/main` | User request at the end of Day 5 (lifts this session's "don't push" hold) | — |
 
 ---
 
@@ -287,7 +288,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - How to test the changes: automated (`npm run check`, watch mode, deliberately break the code), curl against the dev server, browser.
 - Corrected a mix-up: Claude first said "20 parses / 10 tailors"; the Tech Design says 10 parses / 20 tailors.
 
-**Decisions:** D-44 → D-53. ADR-010.
+**Decisions:** D-44 → D-54. ADR-010.
 **Issues / blockers:** none blocking. Known Issue #7 (doc drift) logged.
 **Final verification pass** (the user asked to test everything once more):
 - CI simulated in a clean copy (`git ls-files` → `npm ci` → lint, format:check, typecheck, test, build): all ✅.
@@ -310,12 +311,14 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Test-script slips (not app bugs): zsh doesn't split an unquoted `$J` (curl sent a malformed header → Node's bare 400), macOS has no `timeout`, and a script outside the repo can't resolve `express`. Each was fixed and re-run.
 - The user interrupted the docs step to ask whether we were stuck (we weren't: all tests had passed), then approved it. The interrupted write had already saved the `.env.example` warning and this entry; only this note was added afterwards.
 
-**Exit check met?** ✅ **Milestone 1.1 complete**: every error leaves the API in the standard shape, and the API is protected against basic abuse. `npm run check` green, the clean-copy CI simulation green, the full manual pass green. **Not committed or pushed** (user instruction).
+**Exit check met?** ✅ **Milestone 1.1 complete**: every error leaves the API in the standard shape, and the API is protected against basic abuse. `npm run check` green, the clean-copy CI simulation green, the full manual pass green.
+
+**Push:** the user then asked to push (D-54). Staged diff scanned for secrets (none, no `.env`). Committed `c1b731d feat(api): add error contract and security middleware (Day 5)` and pushed. **GitHub CI green** (run 42294164955, all 9 steps). Then committed and pushed this DEVLOG update as `docs: log Day 5 push`.
 **Next session:** ask about committing/pushing the Day 5 work, then Day 6 (PDF upload & validation, BE-3/BE-4).
 
 ### 📅 Week 1 summary (Days 1–5, 2026-11-03 → 2026-11-06)
 - **Delivered:** monorepo (npm workspaces, strict TS, ESLint/Prettier), API skeleton (Express 5, zod env, pino), web skeleton (React 19, Vite 8, Tailwind 4, Router), Vitest in all workspaces, single `npm run dev`, GitHub Actions CI, private GitHub repo. Shared zod contract (resume, tailor, API envelopes, error codes, locked fields) with synthetic fixtures and a structured-outputs compatibility test. Error contract + security middleware. **Phase 0 + Milestone 1.1 done on schedule.**
-- **Numbers:** 94 tests (shared 53, web 5, api 36). 53 decisions logged, 10 ADRs. CI green through Day 4.
+- **Numbers:** 94 tests (shared 53, web 5, api 36). 54 decisions logged, 10 ADRs. CI green through Day 5.
 - **Went well:** contracts first (shared schemas + typed error catalog catch drift at compile time). Deliberately breaking code proved the tests can fail every day. Manual checks found real noise (the log size) that tests didn't.
 - **Watch out for:** npm workspace install quirk (Known Issue #4); the `npm audit` dev-only findings (#1); Render cold starts and `TRUST_PROXY=1` when deploying; the rate-limit store is per instance.
 - **Next week (Days 6–11):** PDF upload & validation → LLM client (needs the Anthropic API key, **OD-4**, by Day 7) → AI parsing → parse endpoint → upload & review pages → **Milestone 1.2**.
