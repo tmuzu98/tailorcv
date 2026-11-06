@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 8 ✅ complete (local, uncommitted)**. Next = **Day 9**, after the user says to commit/push Day 8 |
-| Branch | `main`. Day 8 work is **uncommitted**; `origin/main` is at Day 7 (`39f8266`) |
+| Current day (per `07-daily-development-plan.md`) | **Day 8 ✅ complete (pushed)**. Next = **Day 9** (started in the same session) |
+| Branch | `main` → in sync with `origin/main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `39f8266 docs: log Day 7 push` (pushed). Day 8 not committed yet (user: commit/push only when told, D-71) |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **235 tests**: shared 53, web 5, api 177). GitHub CI last green on Day 7 |
+| Last commit | `docs: log Day 8 push` (pushed). Day 8 code commit `30a093c` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **235 tests**: shared 53, web 5, api 177). **GitHub CI ✅ green on Day 8** (run 42306856344) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env`. Parse check: `npm run parse:pdf -w @tailorcv/api` |
 
-**Next action:** Wait for the user's go-ahead to commit/push Day 8 (D-71). Then Day 9: real parse endpoint (wire `LlmClient` into `createApp`, replace the stub), overall AI deadline (D-72), FE API client + error messages + React-context session store + route guards.
+**Next action:** Day 9: real parse endpoint (wire `LlmClient` into `createApp`, replace the stub), overall AI deadline (D-72), FE API client + error messages + React-context session store + route guards.
 
 **Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
@@ -466,8 +466,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Decisions:** D-71 → D-77.
 **Issues / blockers:** none. Known Issue #8 updated (95%; headline/location gaps on llama3).
-**Exit check met?** ✅ The 2-column fixture parses correctly on all core fields (name, email, location, job, dates, both bullets verbatim, education, all 3 skills, nothing invented); only the headline is missed by llama3. Results recorded above. **Not committed** (waiting for the user, D-71).
-**Next session:** after the user's go-ahead → commit/push Day 8 → Day 9.
+**Exit check met?** ✅ The 2-column fixture parses correctly on all core fields (name, email, location, job, dates, both bullets verbatim, education, all 3 skills, nothing invented); only the headline is missed by llama3. Results recorded above.
+
+**Push:** the user said "yes push day 8 and start day 9". Secret scan clean. Committed `30a093c feat(api): add AI resume parsing service with parse-v1 prompt (Day 8)`, pushed, **GitHub CI green** (run 42306856344).
+**Next session:** Day 9 (started right away).
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):
