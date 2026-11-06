@@ -183,12 +183,12 @@
 **Goal:** a PDF goes in, and a correct structured `Resume` comes out.
 **Tasks:** AI-2
 
-- [ ] `llm/prompts/parse.v1.ts`: extraction rules (faithful, no inference, keep the original bullet wording, leave missing fields empty, detect "not a resume")
-- [ ] `services/resumeParserService.ts`: PDF base64 → document block → `Resume`
-- [ ] Post-processing: assign stable ids (`exp_1`, `exp_1_b1`…), trim whitespace, remove empty items
-- [ ] `RESUME_NOT_DETECTED` handling
-- [ ] Manual run against the 3 synthetic PDFs (real API). Compare the output to the expected result and record accuracy notes in DEVLOG
-- [ ] Unit tests for post-processing (id assignment, cleanup)
+- [x] `llm/prompts/parse.v1.ts`: extraction rules (faithful, no inference, keep the original bullet wording, leave missing fields empty, detect "not a resume") + `ParseLlmOutputSchema` (no ids, `isResume`)
+- [x] `services/resumeParserService.ts`: PDF ~~base64 → document block~~ → neutral PDF part (D-69) → `Resume`
+- [x] Post-processing: assign stable ids (`exp_1`, `exp_1_b1`…), trim whitespace, remove empty items (+ fixes for small-model mistakes, email rescue: `services/resumeNormalizer.ts`)
+- [x] `RESUME_NOT_DETECTED` handling (model flag + nothing usable extracted; `invoice.pdf` fixture)
+- [x] Manual run against the 3 synthetic PDFs ~~(real API)~~ (local Ollama `llama3`, D-68). Compare the output to the expected result and record accuracy notes in DEVLOG (`npm run parse:pdf`, scored by `tests/fixtures/pdfs/expected.ts`)
+- [x] Unit tests for post-processing (id assignment, cleanup)
 
 **Deliverable:** working parser service.
 **Exit check:** the 2-column fixture parses correctly, and the results are recorded.
@@ -479,7 +479,7 @@
 | 5 | Errors & security 🛟 → **M1.1** | ✅ |
 | 6 | PDF upload & validation | ✅ |
 | 7 | LLM client | ✅ (smoke green on local Ollama; real Claude call deferred, OD-10) |
-| 8 | AI resume parsing | ⬜ |
+| 8 | AI resume parsing | ✅ |
 | 9 | Parse endpoint + FE plumbing | ⬜ |
 | 10 | Upload page | ⬜ |
 | 11 | Review page 🛟 → **M1.2** | ⬜ |

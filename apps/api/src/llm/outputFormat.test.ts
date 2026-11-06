@@ -1,6 +1,7 @@
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { describe, expect, it } from "vitest";
 import { ResumeSchema, TailorResultSchema } from "@tailorcv/shared";
+import { ParseLlmOutputSchema } from "./prompts/parse.v1";
 
 /**
  * Final check of D-39 (Day 7): the EXACT JSON schema the SDK sends for our shared schemas fits
@@ -74,6 +75,7 @@ function hasCycle(schema: Node): boolean {
 describe.each([
   ["ResumeSchema", ResumeSchema],
   ["TailorResultSchema", TailorResultSchema],
+  ["ParseLlmOutputSchema (parse-v1)", ParseLlmOutputSchema],
 ])("%s as sent by the SDK", (_name, zodSchema) => {
   const schema = betaZodOutputFormat(zodSchema).schema as Node;
 

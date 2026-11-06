@@ -125,7 +125,7 @@ Note: in the example, "used by 200+ internal users" is only allowed if the origi
 | `UNSUPPORTED_FILE_TYPE` | 415 | Not a PDF | Ask for a PDF |
 | `PDF_TOO_MANY_PAGES` | 422 | More than 5 pages | Explain the limit |
 | `PDF_ENCRYPTED` | 422 | File is password-protected | Ask for an unlocked file |
-| `RESUME_NOT_DETECTED` | 422 | The document doesn't look like a resume | Explain and let the user retry |
+| `RESUME_NOT_DETECTED` | 422 | The document doesn't look like a resume (the model says so, or no name / no experience, education, skills or projects could be extracted) | Explain and let the user retry |
 | `RATE_LIMITED` | 429 | Too many requests | Show the retry-after time |
 | `AI_PROVIDER_ERROR` | 502 | Upstream AI failure after retries (rate limit, 5xx/overloaded, network), or the AI declined the request (refusal after the fallback) | Offer a retry |
 | `AI_INVALID_OUTPUT` | 502 | Output failed the schema after the app-level retry | Offer a retry |

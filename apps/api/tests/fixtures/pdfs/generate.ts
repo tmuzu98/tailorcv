@@ -137,6 +137,29 @@ async function sevenPages(): Promise<void> {
   await save(doc, "seven-pages.pdf");
 }
 
+/** A valid PDF that is clearly NOT a resume (for RESUME_NOT_DETECTED). */
+async function invoice(): Promise<void> {
+  const { doc, font, bold } = await newDoc("Invoice INV-1042");
+  writeLines(
+    doc.addPage(LETTER),
+    [
+      ["INVOICE #INV-1042", bold, 20],
+      ["Example Supplies Ltd · 12 Market Street · Springfield", font, 10],
+      ["Bill to: Initech Accounts Payable", font, 10],
+      ["", font, 6],
+      ["Item                     Qty     Unit price     Total", bold, 10],
+      ["Printer paper (A4)        10        $4.50       $45.00", font, 10],
+      ["Toner cartridge            2       $60.00      $120.00", font, 10],
+      ["", font, 6],
+      ["Subtotal $165.00 · Tax $13.20 · Total due $178.20", bold, 11],
+      ["Payment due within 30 days. Thank you for your business.", font, 10],
+    ],
+    56,
+    730,
+  );
+  await save(doc, "invoice.pdf");
+}
+
 /**
  * Hand-written PDF with a Standard security handler (/Encrypt, R2) whose /U entry does not match
  * the empty user password, so PDF readers ask for a password. No real encryption is needed for
@@ -186,5 +209,6 @@ await singleColumnResume(1, "resume-1page.pdf");
 await singleColumnResume(2, "resume-2page.pdf");
 await twoColumnResume();
 await sevenPages();
+await invoice();
 encryptedPdf();
 nonPdfFiles();

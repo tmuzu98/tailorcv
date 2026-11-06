@@ -16,17 +16,17 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 7 ✅ complete (pushed)**. Next = **Day 8** (started in the same session) |
-| Branch | `main` → in sync with `origin/main` |
+| Current day (per `07-daily-development-plan.md`) | **Day 8 ✅ complete (local, uncommitted)**. Next = **Day 9**, after the user says to commit/push Day 8 |
+| Branch | `main`. Day 8 work is **uncommitted**; `origin/main` is at Day 7 (`39f8266`) |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 7 push` (pushed). Day 7 code commit `53c4694` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **209 tests**: shared 53, web 5, api 151). **GitHub CI ✅ green on Day 7** (run 42304423698) |
+| Last commit | `39f8266 docs: log Day 7 push` (pushed). Day 8 not committed yet (user: commit/push only when told, D-71) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **235 tests**: shared 53, web 5, api 177). GitHub CI last green on Day 7 |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env` |
+| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env`. Parse check: `npm run parse:pdf -w @tailorcv/api` |
 
-**Next action:** Day 8: AI resume parsing (`PARSE_PROMPT_V1` + `resumeParserService`), developed against local Ollama (and `FakeLlmClient` in tests).
+**Next action:** Wait for the user's go-ahead to commit/push Day 8 (D-71). Then Day 9: real parse endpoint (wire `LlmClient` into `createApp`, replace the stub), overall AI deadline (D-72), FE API client + error messages + React-context session store + route guards.
 
-**Blockers:** none. **Before Day 24:** OD-10 (choose the hosted LLM provider and get a key).
+**Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
 ---
 
@@ -115,6 +115,13 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-68 | **Local development uses Ollama, not the paid Claude API.** New `OllamaLlmClient` (local `llama3` 8B on Ollama 0.40.14) behind the same `LlmClient` interface. **One switch:** `LLM_PROVIDER` in `apps/api/.env` (`ollama` \| `anthropic`), read only by `createLlmClient()`. Defaults: `ollama` outside production, `anthropic` in production; **production refuses `ollama`**. Ollama settings: `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (llama3), `OLLAMA_TIMEOUT_MS` (5 min), `OLLAMA_NUM_CTX` (8192). PDFs → text via unpdf for Ollama. The Claude client stays built and tested (fake API) for later. **When we prepare to deploy, we decide on a hosted provider (Claude API credit or something better) → OD-10, Day 24** | User: the Claude API is pay-as-you-go and they don't want to pay during local development; ChatGPT Go doesn't include API access. Free hosted tiers (e.g. Gemini free) may train on submitted data, which conflicts with the privacy promise. Local Ollama is free, private and already installed; a first test gave schema-valid, mostly faithful output | ADR-012, OD-10 |
 | 2026-11-06 | D-69 | **Switching providers must need zero code changes**, enforced three ways: (1) **neutral types**: `LlmContent` = string or `{type:"text"}`/`{type:"pdf", data}` parts (it used to be the Claude SDK's block type, the one leak the audit found); each client translates (`toClaudeContent` → base64 `document` block before the text; `toPlainText` → unpdf text). `FakeLlmClient` records part types. (2) **ESLint boundary**: `no-restricted-imports` blocks `@anthropic-ai/sdk`(/*), `openai`, `ollama` and the concrete client modules outside `apps/api/src/llm/` and tests (proved with a violating probe file: 2 errors; the factory import is allowed). (3) **Contract suite** `tests/contract/llmClient.contract.test.ts`: 10 scenarios × every client via one local fake server, identical expected outcomes (proved: making the providers diverge → 3 failures naming the provider). Dev Guide now has "switching" and "adding a provider" checklists | User: "make sure our code is scalable so switching from Ollama to Claude doesn't need many code changes" | ADR-013 |
 | 2026-11-06 | D-70 | **Push approved for Day 7**: committed as `53c4694` and pushed; then start Days 8–10 in the same session | User: "yes push day 7 and start day 8, day 9 and day 10" | — |
+| 2026-11-06 | D-71 | Days 8–10 go **one day at a time; commit and push only when the user says so**, then continue step by step until Day 10 is done | User answer to the commit question | — |
+| 2026-11-06 | D-72 | **Overall AI deadline per request** (Day 9): one total budget including retries, ~120 s for Claude and 5 min for local Ollama, then `AI_TIMEOUT` (resolves the Parking Lot item) | User choice ("Overall deadline") | Day 9 |
+| 2026-11-06 | D-73 | Web session state uses **React context** (no Zustand), mirrored to sessionStorage | User choice | Day 9 |
+| 2026-11-06 | D-74 | Day 8 prompt work stays on **local `llama3`** (no new model download for now) | User choice | Known Issue #8 |
+| 2026-11-06 | D-75 | Parse design: the model fills **`ParseLlmOutputSchema`** (Resume without ids, bullets/details as strings, + `isResume`), versioned **together** with `PARSE_SYSTEM_PROMPT` as `parse-v1` in `llm/prompts/parse.v1.ts`; internal to the API (not part of the API contract, so `packages/shared` and the API spec are unchanged). `resumeParserService` sends a neutral PDF part + instruction, effort `low`, 16k tokens; `isResume=false` or nothing usable → `RESUME_NOT_DETECTED`; output re-validated against `ResumeSchema` | Server-assigned ids are stable and can't be hallucinated; the flag gives a clean "not a resume" path; prompt+schema versioning keeps logs/`meta.promptVersion` meaningful | Tech Design §6.1 |
+| 2026-11-06 | D-76 | **Deterministic post-processing** (`services/resumeNormalizer.ts`) that never adds content: ids, trim/collapse, strip bullet glyphs, drop placeholders/empties, drop entries missing a required field (counted), recover skills put in `category`, move a degree line from details to degree, start = end date → end date only, links must look like URLs, **email rescued from the PDF text** (unpdf) if the model missed it. Stats are logged as counts only | Fixes the real llama3 mistakes seen on Day 7/8 without depending on the model; a unit test checks every output string comes from the model output or the document text | Known Issue #8 |
+| 2026-11-06 | D-77 | Parse quality tooling: `tests/fixtures/pdfs/expected.ts` (expected content + `scoreParse` with "invented" checks), new `invoice.pdf` fixture, `npm run parse:pdf -w @tailorcv/api` (fixtures or `-- your.pdf [--json]`, local only). Prompt iterations happen in place until first commit (parse-v1 never shipped) | Measurable, repeatable accuracy notes instead of eyeballing | Dev Guide §4/§6 |
 
 ---
 
@@ -124,7 +131,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Frontend "warm-up" ping to `/api/v1/health` on page load to hide Render free-tier cold starts (ADR-009). Do it on Day 10 or Day 24.
 - Shared rate-limit store (e.g. Redis) if the API ever runs on more than one instance (ADR-010).
 - If Vercel preview deploys need to call the API: add a preview-URL regex to the CORS allowlist (rejected for now, D-46).
-- Overall deadline for LLM calls: `LLM_TIMEOUT_MS` is per attempt and the SDK also retries timeouts, so a worst case is ~3 × 90 s. Consider an `AbortSignal` with a total budget, or `maxRetries: 1` for timeouts (D-65). Decide before Day 15 (tailor endpoint + progress UI).
+- ~~Overall deadline for LLM calls~~ → decided: overall deadline per request (D-72), implemented on Day 9.
 
 ---
 
@@ -139,7 +146,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 | 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
-| 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) |
+| 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) | **Day 8 update:** with parse-v1 + post-processing → **53/56 checks (95%), stable over 2 runs, zero invented content**; email, skills, degree, dates and links fixed. Still open on llama3: headline missed in 2/3 (it shares a line with contact details), location missed in 1/3.
 
 ---
 
@@ -431,6 +438,36 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Push:** approved (D-70). Secret scan clean, no `.env`. Committed `53c4694 feat(api): add provider-neutral LLM layer with Claude and Ollama clients (Day 7)`, pushed, **GitHub CI green** (run 42304423698).
 **Next session:** Day 8: AI resume parsing on local Ollama (started right away).
+
+### 2026-11-06: Session 10 (Day 8: Resume parsing with AI)
+**Day:** 8 (same session as Days 5–7)
+**User instructions:** stay on llama3 (D-74); overall AI deadline (D-72) and React context (D-73) for Day 9; one day at a time, commit/push only when told (D-71).
+
+**Done**
+- [AI-2] `llm/prompts/parse.v1.ts` (`PARSE_PROMPT_VERSION`, `ParseLlmOutputSchema`, `PARSE_SYSTEM_PROMPT`, `buildParseContent`), `services/resumeNormalizer.ts` (`normalizeParsedResume`, `looksLikeResume`), `services/resumeParserService.ts` (`createResumeParserService({ llm, logger })` → `ParseResponse`) (D-75/D-76).
+- Fixtures: `invoice.pdf` added to the generator (other PDFs byte-identical); `tests/fixtures/pdfs/expected.ts` + `scoreParse` (D-77). Script `scripts/parse-pdf.ts` + `npm run parse:pdf`.
+- Tests: `resumeNormalizer.test.ts` (ids, cleanup, placeholders, dropped entries, skill recovery/merge/dedupe, email rescue rules, degree move, single dates, links, "never invents content", `looksLikeResume`), `resumeParserService.test.ts` (FakeLlmClient: contract-valid response + meta, email rescue from the real fixture PDF, LLM call knobs, both RESUME_NOT_DETECTED paths, error pass-through, content-free logs), `ParseLlmOutputSchema` added to `outputFormat.test.ts` (exact SDK schema: keywords, closed objects, refs, no recursion). API 151 → **177**, total **235**.
+- Docs (D-52 audit): Tech Design §4 tree + §6.1 steps 4–6 (prompt, schema, post-processing, RESUME_NOT_DETECTED); API spec §5 `RESUME_NOT_DETECTED` meaning; Dev Guide (prompt + schema versioning, `parse:pdf`); plan (Day 8 ticked, adjustments noted, ✅ in tracker).
+
+**Accuracy (real `npm run parse:pdf`, local Ollama `llama3`, parse-v1)**
+
+| Iteration | resume-1page | resume-2page | resume-2column | invoice | Notes |
+|---|---|---|---|---|---|
+| Day 7 baseline (no prompt) | email ❌, skills ✅ (invented categories) | email ❌, skills empty | email ❌, skills empty | — | Known Issue #8 |
+| parse-v1, first run | 15/17 | 17/19 | 12/14 | ✅ not a resume | email + skills fixed; headline ❌, degree in details ❌, phantom link, start=end date |
+| + prompt rules + normalizer fixes | 17/19 | 20/21 | 15/16 | ✅ | degree/dates fixed; llama3 put the location into links once |
+| + links must look like URLs (run 1 & run 2) | **18/19** | **20/21** | **15/16** | ✅ | **53/56 (95%), identical across 2 runs, 0 invented**; open: headline (2/3), location (1/3) |
+
+- Timing on M3 Pro: 7–17 s per resume (2-column fastest). Every bullet verbatim in every run.
+
+**Verified**
+- Deliberate break (D-33): skill recovery, email rescue, degree move, duplicate-date fix, link filter and the `isResume` check disabled → **10 tests failed**; restored → 177 green.
+- `npm run check` ✅.
+
+**Decisions:** D-71 → D-77.
+**Issues / blockers:** none. Known Issue #8 updated (95%; headline/location gaps on llama3).
+**Exit check met?** ✅ The 2-column fixture parses correctly on all core fields (name, email, location, job, dates, both bullets verbatim, education, all 3 skills, nothing invented); only the headline is missed by llama3. Results recorded above. **Not committed** (waiting for the user, D-71).
+**Next session:** after the user's go-ahead → commit/push Day 8 → Day 9.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

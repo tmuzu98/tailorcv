@@ -12,7 +12,8 @@ export type PdfFixture =
   | "encrypted.pdf"
   | "not-a-pdf.pdf"
   | "empty.pdf"
-  | "corrupt.pdf";
+  | "corrupt.pdf"
+  | "invoice.pdf";
 
 export function pdfFixturePath(name: PdfFixture): string {
   return join(PDF_FIXTURES_DIR, name);

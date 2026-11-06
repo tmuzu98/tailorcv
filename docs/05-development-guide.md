@@ -44,7 +44,7 @@ npm run dev                       # api on :4000, web on :5173
 - **Logging:** use `req.log` / `logger`. **Never log resume content, JD text, or file buffers.** The access log is automatic and minimal (id, method, path, status, time). Don't widen its serializers. If you log an object, log counts/sizes/ids, not content.
 - **Frontend:** feature folders (`features/<name>`). Server calls go only through `api/` hooks. UI primitives live in `components/ui`.
 - **Naming:** `camelCase` for variables and functions, `PascalCase` for components and types, `kebab-case` for folders, `*.schema.ts` for zod schemas, `*.test.ts(x)` next to the code or in `tests/`.
-- **Prompts** are versioned constants. Changing a prompt means bumping its version and noting it in the PR.
+- **Prompts** are versioned constants in `apps/api/src/llm/prompts/<name>.v<N>.ts`, **together with their LLM output schema**. Changing either means bumping the version (e.g. `parse-v2`) and noting it in the PR. The version is logged with every call and returned in `meta.promptVersion`.
 
 ## 5. Git workflow
 
@@ -61,6 +61,7 @@ npm run dev                       # api on :4000, web on :5173
 - **LLM provider boundary (D-69):** only `apps/api/src/llm/` may import an LLM SDK or a concrete client (ESLint `no-restricted-imports` fails the build otherwise). Services build requests with the neutral types from `llm/LlmClient.ts`: content is a string or parts `{ type: "text", text }` / `{ type: "pdf", data }`, never SDK-shaped blocks.
 - **Switching providers** (e.g. Ollama → Claude before deploy): set `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in `apps/api/.env`, restart, run `npm run llm:smoke`. **No code changes.** Then re-check prompt quality on the new provider (ADR-012).
 - **Adding a provider** (e.g. another hosted API): (1) new class in `src/llm/` implementing `LlmClient`, translating the neutral content and using `parseStructuredText` for validation; (2) env vars + a value in the `LLM_PROVIDER` enum; (3) a case in `createLlmClient()`; (4) a harness in `tests/contract/llmClient.contract.test.ts` and make it pass (same error codes, retry rule, no content in logs); (5) docs + `.env.example`. Nothing outside `src/llm/` changes.
+- **Parse quality check:** `npm run parse:pdf -w @tailorcv/api` runs the 3 resume fixtures + the invoice through the real pipeline with the selected provider and scores them against `tests/fixtures/pdfs/expected.ts` (incl. "invented" checks). Add `-- ~/path/resume.pdf [--json]` to try your own PDF (local only, nothing stored). Record accuracy in the DEVLOG after prompt changes.
 - To check the selected provider/model: `npm run llm:smoke -w @tailorcv/api` (one tiny call, reads `apps/api/.env`). Never in tests or CI.
 - Every service gets unit tests. Every route gets an integration test (Supertest).
 - API integration tests build the app with `buildTestApp(envOverrides)` (`apps/api/tests/helpers/app.ts`): silent logger, test env. To test middleware in isolation, mount it on a small `express()` app with `requestId()` + `errorHandler()`.
