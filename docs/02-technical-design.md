@@ -105,7 +105,7 @@ resumeParser/
 │       │   ├── server.ts      # bootstrap
 │       │   ├── app.ts         # express app factory (testable)
 │       │   ├── config/env.ts  # zod-validated env vars
-│       │   ├── routes/        # health, resumes
+│       │   ├── routes/        # health, resumes (createResumesRouter)
 │       │   ├── controllers/
 │       │   ├── services/      # pdfValidation, resumeParser, jobTailor, guardrail
 │       │   ├── llm/           # client, prompts/, schemas
@@ -113,8 +113,8 @@ resumeParser/
 │       │   └── lib/           # logger, errors (AppError + ERROR_CATALOG), utils
 │       │                      # unit tests live next to the code (*.test.ts, D-28)
 │       └── tests/
-│           ├── fixtures/      # sample PDFs + JDs (synthetic, no real PII)
-│           ├── helpers/       # buildTestApp(envOverrides) etc.
+│           ├── fixtures/pdfs/ # synthetic PDFs + generate.ts (npm run fixtures:pdfs)
+│           ├── helpers/       # buildTestApp(envOverrides), pdfFixturePath/readPdfFixture
 │           └── integration/   # Supertest route/middleware tests
 └── packages/
     └── shared/                # zod schemas + TS types shared by web & api
@@ -201,9 +201,11 @@ TailorResult = {
 ### 6.1 Parse: `POST /api/v1/resumes/parse`
 
 ```
-1. multer (memoryStorage, limit 5 MB, single field "file")
-2. Validate MIME type + magic bytes ("%PDF-")       → 415 if not PDF
-3. unpdf: page count ≤ 5, not encrypted              → 422 if violated
+0. Parse rate limiter (before anything is read)     → 429
+1. multer (memoryStorage, limit 5 MB, single field "file")  → 400 / 413   [middleware/upload.ts]
+2. Declared type pre-check + magic bytes ("%PDF-" in the first 1024 bytes) → 415
+3. unpdf: opens (damaged → 415), not encrypted, page count ≤ 5 → 422     [services/pdfValidationService.ts]
+   (Day 6–8: the route stops here and returns { stub: true, pages }. Steps 4–7 arrive on Days 8–9)
 4. LLM call #1 (resumeParserService):
      - PDF sent as a base64 `document` content block (Claude reads text AND layout,
        works on scanned PDFs too)

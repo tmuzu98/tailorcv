@@ -29,7 +29,12 @@ Upload a PDF resume and get back a structured `Resume`.
 
 | Field | Type | Rules |
 |---|---|---|
-| `file` | PDF file | required · `application/pdf` · ≤ 5 MB · ≤ 5 pages · not encrypted |
+| `file` | PDF file | required · exactly one file in the `file` field · ≤ 5 MB · ≤ 5 pages · not encrypted |
+
+- The file must start with the PDF signature `%PDF-` (within the first 1024 bytes). The declared type is only a pre-check: `application/pdf`, `application/x-pdf` and `application/octet-stream` are accepted, anything else → `415` with `details.declaredType`.
+- Checks run in this order: rate limit → upload (size, field) → type → PDF structure (encryption, page count). A rate-limited client gets `429` before the upload is read.
+
+> **Day 6–8 stub:** until the AI parsing lands on Day 9, a valid upload returns `200 { "stub": true, "pages": <n> }` instead of the response below. The web app does not call this endpoint before Day 9.
 
 **200**
 ```json
@@ -39,7 +44,18 @@ Upload a PDF resume and get back a structured `Resume`.
 }
 ```
 
-**Errors:** `400 FILE_MISSING` · `413 FILE_TOO_LARGE` · `415 UNSUPPORTED_FILE_TYPE` · `422 PDF_TOO_MANY_PAGES` · `422 PDF_ENCRYPTED` · `422 RESUME_NOT_DETECTED` · `429 RATE_LIMITED` · `502 AI_PROVIDER_ERROR` · `504 AI_TIMEOUT`
+**Errors:** `400 FILE_MISSING` · `400 VALIDATION_ERROR` · `413 FILE_TOO_LARGE` · `415 UNSUPPORTED_FILE_TYPE` · `422 PDF_TOO_MANY_PAGES` · `422 PDF_ENCRYPTED` · `422 RESUME_NOT_DETECTED` · `429 RATE_LIMITED` · `502 AI_PROVIDER_ERROR` · `504 AI_TIMEOUT`
+
+| Situation | Response |
+|---|---|
+| No file, non-multipart body, or an empty (0-byte) file | `400 FILE_MISSING` (empty file: "The uploaded file is empty.") |
+| File in the wrong field, more than one file, or a malformed/truncated multipart body | `400 VALIDATION_ERROR` |
+| Over 5 MB | `413 FILE_TOO_LARGE`, `details: { maxBytes: 5242880 }` |
+| Declared type isn't a PDF type | `415 UNSUPPORTED_FILE_TYPE`, `details: { declaredType }` |
+| No `%PDF-` signature | `415 UNSUPPORTED_FILE_TYPE` |
+| Has the signature but the PDF is damaged | `415 UNSUPPORTED_FILE_TYPE`, message "This PDF appears to be damaged…" |
+| Password-protected | `422 PDF_ENCRYPTED` |
+| More than 5 pages | `422 PDF_TOO_MANY_PAGES`, `details: { pages, maxPages: 5 }` |
 
 ---
 

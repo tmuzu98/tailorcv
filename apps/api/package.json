@@ -9,14 +9,17 @@
     "build": "tsup",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
+    "fixtures:pdfs": "tsx tests/fixtures/pdfs/generate.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
     "@types/supertest": "^7.2.1",
+    "pdf-lib": "^1.17.1",
     "pino-pretty": "^13.2.0",
     "supertest": "^7.3.1",
     "tsup": "^9.0.0",
@@ -28,8 +31,10 @@
     "express": "^5.3.0",
     "express-rate-limit": "^8.7.3",
     "helmet": "^8.3.0",
+    "multer": "^2.5.0",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
+    "unpdf": "^2.1.0",
     "zod": "^4.6.7"
   }
 }
