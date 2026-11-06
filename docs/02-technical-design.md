@@ -108,7 +108,7 @@ resumeParser/
 │       │   ├── routes/        # health, resumes (createResumesRouter)
 │       │   ├── controllers/
 │       │   ├── services/      # pdfValidation, resumeParser, jobTailor, guardrail
-│       │   ├── llm/           # client, prompts/, schemas
+│       │   ├── llm/           # LlmClient, AnthropicLlmClient, OllamaLlmClient (dev), FakeLlmClient, createLlmClient = provider switch (Day 7); prompts/ (Day 8+)
 │       │   ├── middleware/    # requestId, requestLogger, errorHandler (+404), rateLimit, upload
 │       │   └── lib/           # logger, errors (AppError + ERROR_CATALOG), utils
 │       │                      # unit tests live next to the code (*.test.ts, D-28)
@@ -239,18 +239,22 @@ TailorResult = {
 
 | Setting | Value | Notes |
 |---|---|---|
-| SDK | `@anthropic-ai/sdk` | Official SDK, no raw `fetch` |
+| Provider switch | `LLM_PROVIDER` = `ollama` (local development, default outside production) or `anthropic` (required in production) | `createLlmClient()` in `apps/api/src/llm/index.ts` is the only place that picks; everything else takes an `LlmClient` (ADR-012). Requests use provider-neutral types (content = text/PDF parts), an ESLint boundary blocks SDK/concrete-client imports outside `src/llm/`, and a contract suite runs the same scenarios against every client (ADR-013). The hosted provider for production is decided before Day 24 (OD-10) |
+| SDK | `@anthropic-ai/sdk` 1.6 | Official SDK, no raw `fetch`. Sends the key as `Authorization: Bearer` with API version `2026-10-21` |
 | Model | `claude-opus-5-5` | Read from `ANTHROPIC_MODEL` env var so it can be changed without a code change |
-| Method | `client.messages.parse()` with `output_config.format: zodOutputFormat(schema)` | Validated, typed JSON back |
+| Method | `client.beta.messages.create()` with `output_config.format` = the JSON schema from `betaZodOutputFormat(schema)`, then **our own** `JSON.parse` + `schema.safeParse` | Beta endpoint because of `fallbacks`. Own validation (instead of `.parse()`) gives a typed schema-mismatch signal for the retry and lets us check `stop_reason` first (D-63). Implemented in `apps/api/src/llm/AnthropicLlmClient.ts` behind the `LlmClient` interface (ADR-011) |
 | Thinking | `thinking: { type: "adaptive" }` | Opus 5.5 always thinks. `effort` controls how deep |
 | Effort | Parse: `low` · Tailor: `medium` (to be tuned with evals in Phase 5) | Set explicitly. The default for Opus 5.5 is `medium` |
 | `max_tokens` | 16000 | Non-streaming. A resume JSON fits easily |
-| Refusal fallback | beta `server-side-fallback-2026-07-01` + `fallbacks: "default"` | Always check `stop_reason` (`refusal`, `max_tokens`) before using the output |
-| Retries | SDK default `maxRetries: 2` (429/5xx/network) | Plus one app-level retry if zod validation fails |
-| Timeout | 90 s per request | Frontend shows progress steps meanwhile |
+| Refusal fallback | beta `server-side-fallback-2026-07-01` + `fallbacks: "default"` | `stop_reason` is checked first: `refusal` (whole chain declined) → `AI_PROVIDER_ERROR` "declined", category logged, no retry. `max_tokens` (truncated JSON) → `AI_INVALID_OUTPUT`, no retry |
+| Retries | SDK default `maxRetries: 2` (408/409/429/5xx/network) | Plus one app-level retry when the answer is invalid JSON or fails the zod schema (`MAX_ATTEMPTS = 2`) |
+| Timeout | 90 s per request (`LLM_TIMEOUT_MS`) | Per attempt: the SDK also retries timeouts, so the worst case is about 3 × 90 s (Parking Lot: overall deadline). Frontend shows progress steps meanwhile |
 | Prompt caching | `cache_control` on the stable system prompt | Lowers cost when the same resume is re-tailored |
-| Errors | Typed SDK errors (`Anthropic.RateLimitError`, `Anthropic.APIError`...) mapped to `AppError` codes | See API spec §5 |
-| Cost tracking | Log `usage.input_tokens`, `output_tokens`, `cache_read_input_tokens` per call | Never log the prompt content itself |
+| Errors | Typed SDK errors, most specific first: `APIConnectionTimeoutError` → `AI_TIMEOUT`; `APIConnectionError`, 429, 5xx/529 → `AI_PROVIDER_ERROR`; other 4xx (400 malformed, 401/403 key, 404 model) → `INTERNAL_ERROR` (our bug/config, D-64) | Logged with status, error type and upstream request id only. See API spec §5 |
+| Cost tracking | One `llm call completed` log line per call: prompt version, effort, model, served-by model, attempt, stop reason, input/output/cache-read/cache-creation tokens, duration | Never log the prompt, document or answer (tested) |
+| Testing | `FakeLlmClient` (queued data/errors, validated against the caller's schema) for all app tests; the real SDK is tested against a local fake Messages API; `npm run llm:smoke -w @tailorcv/api` makes one tiny real call | CI never calls the real API |
+
+**Local development with Ollama (D-68, ADR-012):** `OllamaLlmClient` calls Ollama's `/api/chat` with `format` = the inlined JSON schema (`z.toJSONSchema`), `temperature: 0`, explicit `num_ctx`, `num_predict = maxTokens`, and the same zod validation / retry-once / error codes. PDFs are converted to text with unpdf first (no layout); `effort` is ignored. Expect weaker extraction (first test: fields verbatim but it invented skill categories) and ~20 s+ per resume on an M3 Pro with `llama3` 8B. Prompt quality for real users must be checked on the production provider before launch.
 
 Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions (`PARSE_PROMPT_V1`, `TAILOR_PROMPT_V1`). The prompt version is written to the logs so output quality can be tied back to a specific prompt.
 
@@ -282,6 +286,7 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 - One `AppError` class (`apps/api/src/lib/errors.ts`): `new AppError(code, { message?, details?, cause? })` → `{ code, status, message, details }`. Status and default user message come from `ERROR_CATALOG`, typed `Record<ErrorCode, …>` against the shared `ERROR_CODES` (a missing entry fails to compile). `cause` is logged, never sent.
 - A central `errorHandler` turns any thrown error into the standard error response (API spec §4), with `requestId`. body-parser errors map to `PAYLOAD_TOO_LARGE` / `VALIDATION_ERROR`, and any other client error that Express/body-parser flags with `expose: true` + a 4xx status becomes `VALIDATION_ERROR` (third-party errors that merely carry a `status`, such as an SDK 401, stay `INTERNAL_ERROR`). Anything unknown becomes `INTERNAL_ERROR` with a generic message, and the real error is logged at error level. `notFoundHandler` answers every unmatched path with `NOT_FOUND`. See ADR-010.
+- Error responses are sent only after any unread request body (≤ 6 MB) is discarded; otherwise a client still uploading sees a connection reset instead of the JSON (D-66). Larger unread bodies get `Connection: close`.
 - The frontend maps `error.code` to a friendly message and a suggested action (for example, `PDF_TOO_MANY_PAGES` → "Please upload a resume of 5 pages or fewer").
 
 ## 9. Environments & deployment
@@ -298,12 +303,15 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 |---|---|---|
 | `PORT` | `4000` | no |
 | `NODE_ENV` | `development` | no |
-| `ANTHROPIC_API_KEY` | `sk-ant-…` | **yes** |
+| `ANTHROPIC_API_KEY` | `sk-ant-…` | **yes in production** (startup fails without it); optional in development/test (AI calls fail with `INTERNAL_ERROR`) |
 | `ANTHROPIC_MODEL` | `claude-opus-5-5` | no (default) |
 | `CORS_ORIGIN` | `http://localhost:5173,https://<app>.vercel.app` (comma-separated exact origins) | no (default localhost) |
 | `TRUST_PROXY` | `1` on Render, `0` locally | no |
 | `RATE_LIMIT_PARSE_PER_HOUR` | `10` | no |
 | `RATE_LIMIT_TAILOR_PER_HOUR` | `20` | no |
+| `LLM_TIMEOUT_MS` | `90000` | no |
+| `LLM_PROVIDER` | `ollama` / `anthropic` | no (default `ollama` in development/test, `anthropic` in production; production refuses `ollama`) |
+| `OLLAMA_BASE_URL` · `OLLAMA_MODEL` · `OLLAMA_TIMEOUT_MS` · `OLLAMA_NUM_CTX` | `http://localhost:11434` · `llama3` · `300000` · `8192` | no (local development only) |
 | `LOG_LEVEL` | `info` | no |
 
 **Frontend:** `VITE_API_BASE_URL` (empty in local dev because the Vite proxy handles it).

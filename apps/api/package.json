@@ -10,6 +10,7 @@
     "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "fixtures:pdfs": "tsx tests/fixtures/pdfs/generate.ts",
+    "llm:smoke": "tsx --env-file-if-exists=.env scripts/llm-smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -26,6 +27,7 @@
     "tsx": "^4.23.15"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@tailorcv/shared": "*",
     "cors": "^2.8.6",
     "express": "^5.3.0",

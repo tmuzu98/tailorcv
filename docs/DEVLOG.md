@@ -16,17 +16,17 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 6 ✅ complete (pushed)**. Next session = **Day 7** |
-| Branch | `main` → in sync with `origin/main` |
+| Current day (per `07-daily-development-plan.md`) | **Day 7 ✅ complete (local, uncommitted)**: smoke test green on local Ollama. Next session = **Day 8** |
+| Branch | `main`. Day 7 work is **uncommitted in the working tree**; `origin/main` is at Day 6 (`f98ac80`) |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 6 push` (pushed). Day 6 code commit `90db1fe` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **125 tests**: shared 53, web 5, api 67). Clean-copy CI simulation ✅. **GitHub CI ✅ green on Day 6** (run 42298188550) |
+| Last commit | `f98ac80 docs: log Day 6 push` (pushed). Day 7 not committed yet |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **209 tests**: shared 53, web 5, api 151). GitHub CI last green on Day 6 |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173 |
+| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env` |
 
-**Next action:** Day 7: the LLM client (AI-1): `LlmClient` interface + Anthropic implementation + `FakeLlmClient`. **Needs the Anthropic API key (OD-4)** in `apps/api/.env`.
+**Next action:** Ask whether to commit/push Day 7. Then Day 8: AI resume parsing (`PARSE_PROMPT_V1` + `resumeParserService`), developed against local Ollama (and `FakeLlmClient` in tests).
 
-**Blockers:** none. OD-4 (API key) is needed at the start of Day 7.
+**Blockers:** none. **Before Day 24:** OD-10 (choose the hosted LLM provider and get a key).
 
 ---
 
@@ -34,10 +34,10 @@
 
 | # | Question | Proposed default | Needed by |
 |---|---|---|---|
-| OD-4 | Anthropic API key available? | User provides it in `apps/api/.env` | Day 7 |
+| OD-10 | **Which hosted LLM provider for production, and getting its key/credit?** Local development uses Ollama for free (D-68), but Render can't run a local model. Options: Claude API credit (planned, ADR-008), or another hosted provider. Also decide whether to set a spend limit and which model/effort fits the budget. Re-check the prompts on the chosen provider before launch | Claude API (Opus 5.5; ~\$0.05–0.25 per parse/tailor, roughly \$5–20 for the rest of development if used) | **Day 24** (earlier if we want real Claude output for prompt tuning) |
 | OD-6 | Optional anonymous analytics in MVP? | No | Day 20 |
 
-_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17. Resolved on Day 3: OD-8 → D-34, OD-9 → D-35._
+_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17. Resolved on Day 3: OD-8 → D-34, OD-9 → D-35. Day 7: OD-4 (API key by Day 7) → replaced by OD-10 after D-68._
 
 ---
 
@@ -106,6 +106,14 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-59 | Rate limiters are now **created per app instance** inside `createApp` (`createRateLimiters(env)` → `createResumesRouter({ limiters })`); `AppDeps.env` includes the rate-limit vars | Each test app gets fresh budgets; the tailor router reuses the same object on Day 15 | `app.ts` |
 | 2026-11-06 | D-60 | pdf.js runs with **`verbosity: 0`** (errors only) in `validatePdf` | Found in the pre-push manual pass: pdf.js printed a raw `Warning: Indexing all PDF objects` line to stdout while recovering `corrupt.pdf`, which breaks the JSON-only production logs. A test spies on `console.*` and fails if anything is printed (it failed before the fix) | `pdfValidationService.ts` |
 | 2026-11-06 | D-61 | **Push approved for Day 6**: committed as `90db1fe` and pushed to `origin/main` | User request after the pre-push manual pass ("yes push it") | — |
+| 2026-11-06 | D-62 | **Corrects D-39:** `$ref`/`$defs` ARE supported by Claude structured outputs; only **recursion** isn't. The SDK's `betaZodOutputFormat` emits `$defs` for reused sub-schemas (3 in `ResumeSchema`, 7 in `TailorResultSchema`). New `apps/api/src/llm/outputFormat.test.ts` checks the **exact** schema the SDK sends: allowed keywords only, every object closed, all refs resolve, no cycles (with a cycle-detector sanity test). The shared test's logic was already a valid recursion check (default `z.toJSONSchema` only emits `$ref` for cycles); only its name/comment was corrected | Day 7 = the planned final check with the real SDK converter (D-39). Found by running it, not assumed | `outputFormat.test.ts`, `llm-compat.test.ts` |
+| 2026-11-06 | D-63 | `AnthropicLlmClient` uses `client.beta.messages.create()` + the JSON schema from `betaZodOutputFormat` + **our own** `JSON.parse`/`safeParse`, not `.parse()`. Order: `stop_reason` first (`refusal` → `AI_PROVIDER_ERROR` "declined", category logged, no retry; `max_tokens` → `AI_INVALID_OUTPUT`, no retry), then validation with **one retry** on invalid JSON/schema mismatch (`MAX_ATTEMPTS = 2`). Text blocks are joined; thinking/fallback blocks skipped. Schema-failure logs carry issue **paths only**, never values | `.parse()` throws a generic `AnthropicError` on mismatch, which can only be told apart by string-matching its message (the SDK guide says don't). The SDK docs confirm the format can be passed to `create()` | ADR-011 |
+| 2026-11-06 | D-64 | SDK error mapping, most specific first: `APIConnectionTimeoutError` → `AI_TIMEOUT`; `APIConnectionError` → `AI_PROVIDER_ERROR`; `APIError` 429 / ≥500 (incl. 529) → `AI_PROVIDER_ERROR`; **other 4xx (400/401/403/404) → `INTERNAL_ERROR`**; anything else → `INTERNAL_ERROR`. SDK errors are never retried at app level (the SDK already retried). Logs: status, error type, upstream request id | A bad key or malformed request is our bug, not a provider outage, and must never look like the user's fault (D-53 lesson) | API spec §5 |
+| 2026-11-06 | D-65 | Config: `ANTHROPIC_API_KEY` **required in production only** (startup exits with a clear message; empty = unset). Development/test may run without it: `createLlmClient` then returns a stub that fails each call with a logged `INTERNAL_ERROR`. New `LLM_TIMEOUT_MS` (default 90000). SDK **1.6.0** (sends `Authorization: Bearer`, API version `2026-10-21`). `fallbacks: "default"` with beta `server-side-fallback-2026-07-01` (category-routed, no model list to maintain) | `npm run dev` keeps working without a key until Day 9 wires the client in; production can't start misconfigured. Verified with the built server | `config/env.ts`, `llm/index.ts` |
+| 2026-11-06 | D-66 | 🐛 **Fix:** `errorHandler` discards any **unread request body (≤ 6 MB) before sending** the error; larger/unknown-length bodies get `Connection: close`. Before, a rate-limited 4 MB upload got **EPIPE/ECONNRESET 20/20 times** instead of the 429 (also 404s to unknown routes) | Found by chasing a flaky Day 6 test (failed ~1 in 3 full runs under load) instead of re-running it. Real user impact: a browser would show "network error" instead of "too many requests" | `middleware/errorHandler.ts` |
+| 2026-11-06 | D-67 | LLM testing: unit tests with a stubbed SDK for every branch; **the real SDK against a local fake Messages API** (test-only `baseURL` option) for HTTP shape, real error classes, SDK retries (529 → 3 hits) and timeouts; `FakeLlmClient` validates queued data against the caller's schema and records calls; `npm run llm:smoke -w @tailorcv/api` for one real call (never in CI) | Covers what a stub can't (headers, retries, real timeouts) without ever calling the real API | `anthropicSdk.test.ts` |
+| 2026-11-06 | D-68 | **Local development uses Ollama, not the paid Claude API.** New `OllamaLlmClient` (local `llama3` 8B on Ollama 0.40.14) behind the same `LlmClient` interface. **One switch:** `LLM_PROVIDER` in `apps/api/.env` (`ollama` \| `anthropic`), read only by `createLlmClient()`. Defaults: `ollama` outside production, `anthropic` in production; **production refuses `ollama`**. Ollama settings: `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (llama3), `OLLAMA_TIMEOUT_MS` (5 min), `OLLAMA_NUM_CTX` (8192). PDFs → text via unpdf for Ollama. The Claude client stays built and tested (fake API) for later. **When we prepare to deploy, we decide on a hosted provider (Claude API credit or something better) → OD-10, Day 24** | User: the Claude API is pay-as-you-go and they don't want to pay during local development; ChatGPT Go doesn't include API access. Free hosted tiers (e.g. Gemini free) may train on submitted data, which conflicts with the privacy promise. Local Ollama is free, private and already installed; a first test gave schema-valid, mostly faithful output | ADR-012, OD-10 |
+| 2026-11-06 | D-69 | **Switching providers must need zero code changes**, enforced three ways: (1) **neutral types**: `LlmContent` = string or `{type:"text"}`/`{type:"pdf", data}` parts (it used to be the Claude SDK's block type, the one leak the audit found); each client translates (`toClaudeContent` → base64 `document` block before the text; `toPlainText` → unpdf text). `FakeLlmClient` records part types. (2) **ESLint boundary**: `no-restricted-imports` blocks `@anthropic-ai/sdk`(/*), `openai`, `ollama` and the concrete client modules outside `apps/api/src/llm/` and tests (proved with a violating probe file: 2 errors; the factory import is allowed). (3) **Contract suite** `tests/contract/llmClient.contract.test.ts`: 10 scenarios × every client via one local fake server, identical expected outcomes (proved: making the providers diverge → 3 failures naming the provider). Dev Guide now has "switching" and "adding a provider" checklists | User: "make sure our code is scalable so switching from Ollama to Claude doesn't need many code changes" | ADR-013 |
 
 ---
 
@@ -115,6 +123,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Frontend "warm-up" ping to `/api/v1/health` on page load to hide Render free-tier cold starts (ADR-009). Do it on Day 10 or Day 24.
 - Shared rate-limit store (e.g. Redis) if the API ever runs on more than one instance (ADR-010).
 - If Vercel preview deploys need to call the API: add a preview-URL regex to the CORS allowlist (rejected for now, D-46).
+- Overall deadline for LLM calls: `LLM_TIMEOUT_MS` is per attempt and the SDK also retries timeouts, so a worst case is ~3 × 90 s. Consider an `AbortSignal` with a total budget, or `maxRetries: 1` for timeouts (D-65). Decide before Day 15 (tailor endpoint + progress UI).
 
 ---
 
@@ -129,6 +138,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 | 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
+| 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) |
 
 ---
 
@@ -367,6 +377,57 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Push:** the user asked whether everything works with zero errors. Answered yes for everything built, and listed what isn't covered yet: GitHub CI not yet run on Day 6, only synthetic PDFs (real Word/Docs/Canva exports and scanned PDFs untested), the parse route is a stub, nothing deployed, Known Issues #1 and #7 open. The user approved the push (D-61). Staged diff scanned for secrets (none, no `.env`). Committed `90db1fe feat(api): add PDF upload and validation with parse stub (Day 6)` and pushed. **GitHub CI green** (run 42298188550, all steps). Then pushed this DEVLOG update as `docs: log Day 6 push`.
 **Next session:** Day 7: LLM client (AI-1). Get the Anthropic API key first (OD-4).
+
+### 2026-11-06: Session 9 (Day 7: LLM client)
+**Day:** 7 (same session as Days 5–6, at the user's request)
+
+**Done**
+- Loaded the Claude API reference skill before writing SDK code (current parameter names, `fallbacks: "default"`, `$ref` support, error classes).
+- Checked credentials without printing them: no `.env`, no `ant` profile, nothing in the shell. Built and tested everything with fakes; only the real smoke run waits for the key.
+- Installed `@anthropic-ai/sdk` 1.6.0 (saved correctly, 0 vulnerabilities).
+- [AI-1] `src/llm/LlmClient.ts` (interface), `AnthropicLlmClient.ts` (D-63/D-64), `FakeLlmClient.ts`, `index.ts` (`createLlmClient`). Env: key rules + `LLM_TIMEOUT_MS` (D-65). `scripts/llm-smoke.ts` + `npm run llm:smoke` (`scripts/` added to the API tsconfig).
+- Ran the SDK's real schema converter on our shared schemas → `$ref`/`$defs` present, which contradicted the Day 4 "no `$ref`" wording → checked the docs (refs supported, recursion not) → new SDK-output test + corrected wording (D-62).
+- 🐛 Chased a flaky Day 6 rate-limit test → found rate-limited uploads get connection resets instead of 429 → fixed in `errorHandler` (D-66).
+- Tests: `AnthropicLlmClient.test.ts` (request shape, data/usage, thinking blocks skipped, retry-once, invalid JSON, give-up, refusal, max_tokens, 9 error mappings, upstream request-id logging, no content in logs), `tests/integration/anthropicSdk.test.ts` (real SDK vs local fake API: request/headers, 529 + SDK retries, 401, timeout, refused connection), `FakeLlmClient.test.ts`, `outputFormat.test.ts`, `index.test.ts`, env tests, 2 early-response upload tests. API 67 → **114**, total **172**.
+- Docs (D-52 audit): Tech Design §4 tree, §6.3 (method, SDK version/auth, refusal/max_tokens, retries, timeout worst case, error mapping, logging, testing), §8 (drain), §9 env table (`ANTHROPIC_API_KEY` prod-only, `LLM_TIMEOUT_MS`); API spec (drain note, `AI_PROVIDER_ERROR` incl. refusals, `INTERNAL_ERROR` incl. AI misconfig); Dev Guide §6 (FakeLlmClient usage, smoke script); ADR-008 → Accepted, **ADR-011** added; `.env.example`; plan (Day 7 ticked, smoke run pending, 🟡 in tracker).
+
+**Verified**
+- My own test assumption was wrong once: I expected `x-api-key`, but SDK 1.6 sends `Authorization: Bearer`. Checked with a local server and fixed the test, not the code.
+- Deliberate break (D-33): retry disabled, timeout check skipped, refusal check skipped, body draining removed → **9 tests failed**; restored → 114 green.
+- Flakiness: the original reproduction (20 rate-limited 4 MB uploads) went from 20× EPIPE/ECONNRESET to **20× 429**; full API suite **10× in a row green**.
+- Built server: production without a key (or with an empty key) → exit 1 with "ANTHROPIC_API_KEY is required in production"; development without a key → starts, health 200.
+- `npm run llm:smoke` without a key → clear "not set" message, exit 1.
+- `npm run check` ✅.
+
+**Discussion: paying for the API, and the local-model decision** (after the Day 7 code was done)
+- The user asked how to create an API key → gave the Console steps (platform.claude.com: billing/credits, spend limit, create key, copy once, put it in `.env`, never paste it into chat).
+- The user asked whether they'd have to pay → yes, the API is pay-as-you-go and separate from claude.ai or ChatGPT subscriptions. Estimates: smoke < \$0.01; a parse ~\$0.05–0.15; a tailor ~\$0.10–0.25 on Opus 5.5; ~\$5–20 for the rest of development. Options: fake client (free), a spend limit, a cheaper model via `ANTHROPIC_MODEL` (Haiku 5.5 ≈ 1/40th of the cost).
+- The user asked about free alternatives (they have ChatGPT Go) → ChatGPT Go doesn't include OpenAI API access. Compared Gemini's free tier (may train on data: privacy conflict), Groq/OpenRouter free models (weaker, text only), local Ollama (free, private, weaker, dev only), Claude Haiku. Noted openly that Claude (Anthropic) was giving the comparison.
+- The user already had Ollama installed → checked: Ollama 0.40.14 running, `llama3` 8B, M3 Pro 18 GB. **Real test** on `resume-2page.pdf` (text via unpdf + `z.toJSONSchema(ResumeSchema)`): schema-valid; name, both jobs, titles, dates and all 3 bullets verbatim; education/project/cert correct; **but it invented skill categories** ("Programming", "Database"); 25.7 s cold / 19.5 s warm; 8K context.
+- **User decision:** use the Ollama client for local development for now; log it, and when we think about deploying, consider a Claude API key or something better (D-68, OD-10). The user asked for an easy way to switch → the `LLM_PROVIDER` one-line switch.
+
+**Built for D-68**
+- `src/llm/structured.ts` (shared `parseStructuredText` + `SchemaMismatch`, used by both clients), `src/llm/OllamaLlmClient.ts`, `createLlmClient` switch + startup log, env (`LLM_PROVIDER` + Ollama vars, production refusal), smoke script via the factory, `.env.example` switch section, README "AI provider" note.
+- Tests: `tests/integration/ollamaClient.test.ts` (against a local fake Ollama: request shape, inline schema with no `$ref`, PDF → text, unsupported block, retry, give-up, truncation, 404 + pull hint, 500, timeout, not running + serve hint, no content in logs), env provider tests, factory tests. API 114 → **130**, total **188**.
+- Verified: **real smoke via Ollama ✅** (`{"status":"ok","echo":"tailorcv"}`, 627 ms warm). `LLM_PROVIDER=anthropic` without a key → clear hint; production + ollama → refuses to start; unknown model → `ollama pull` hint. Deliberate break (default provider, truncation check, PDF conversion) → 3 failures; restored → green. `npm run check` ✅.
+- Slip: a leftover throwaway probe script (`probe-ollama.mts`) caused 5 lint warnings; deleted (never staged).
+- Docs (D-52): Tech Design §4/§6.3/§9 + Ollama paragraph, Dev Guide §6 (switching), ADR-012, plan (Day 7 ✅, Day 24 starts with OD-10), README, `.env.example`.
+
+**Scalability pass for the provider switch** (user: switching Ollama → Claude must not need many code changes)
+- Audit: no SDK or concrete-client imports outside `src/llm/` ✅, one switch ✅, shared validation/retry/error codes ✅. **Leak found:** `LlmContent` used the Claude SDK's block types. **Gaps:** nothing enforced the boundary, and nothing proved both clients behave the same.
+- Fixes (D-69, ADR-013): neutral content parts + per-client translation; ESLint provider boundary; LLM client contract suite (20 checks). Tests updated (the compiler flagged the one Claude-shaped usage in a test); `toClaudeContent` tests added.
+- Verified: boundary probe → 2 lint errors (factory allowed), repo lints clean; contract divergence probe → 3 failures; restored → API **151** green, total **209**.
+- Result: Ollama → Claude = `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in `.env`, restart, `npm run llm:smoke`. No code changes. Adding a provider = new class + contract harness (Dev Guide checklist).
+
+**"Did we test the Ollama client and the API properly?"** (user question). Answered honestly with what was and wasn't covered, then closed the gaps that can be closed today:
+- **Real `OllamaLlmClient` + real `llama3` + full `ResumeSchema` + neutral PDF parts** on `resume-1page`, `resume-2page`, `resume-2column` (temporary script, deleted): all ✅ schema-valid on the 1st attempt (11–20 s). Correct: names, companies, titles, dates, bullet counts, education (2-column too). **Quality gaps: email dropped in all 3, empty skill groups in 2 of 3** → Known Issue #8, input for the Day 8 prompt.
+- **API manual regression re-run after today's changes** (error-handler drain, env/provider settings): regression script extended with 2 D-66 checks (4 MB upload while rate-limited → 429 JSON; 4 MB upload to an unknown route → 404 JSON) → **56/56 passed**.
+- Not testable yet: the API calling the LLM (the parse route is wired to the LLM on Day 9); no upload UI until Day 10.
+
+**Decisions:** D-62 → D-69. ADR-011, ADR-012, ADR-013. OD-4 replaced by OD-10.
+**Issues / blockers:** none. OD-10 before Day 24. Parking Lot: overall LLM deadline.
+**Exit check met?** ✅ The smoke script succeeds (on local Ollama, the agreed development provider), and unit tests pass with the fake client. A real Claude call is deferred to OD-10. **Not committed yet.**
+**Next session:** commit/push Day 7 (ask), then Day 8: AI resume parsing on local Ollama.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

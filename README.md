@@ -14,12 +14,14 @@ Upload a PDF resume, paste a job description, and get back an honest, ATS-friend
 git clone https://github.com/tmuzu98/tailorcv.git
 cd tailorcv
 npm install
-cp apps/api/.env.example apps/api/.env   # optional for now; the API key is needed from Day 7
+cp apps/api/.env.example apps/api/.env   # optional: defaults work for local development
 npm run dev
 ```
 
 - Web: http://localhost:5173 (the footer should show **"API: ok"**)
 - API: http://localhost:4000/api/v1/health
+
+**AI provider (local development):** the app uses a local model through [Ollama](https://ollama.com) by default (`LLM_PROVIDER=ollama`): free and private. Install Ollama, run `ollama pull llama3`, then check it with `npm run llm:smoke -w @tailorcv/api`. To use Claude instead, set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in `apps/api/.env`. Production always uses a hosted provider.
 
 ## Scripts (run from the repo root)
 

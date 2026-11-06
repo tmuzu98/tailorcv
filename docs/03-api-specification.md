@@ -7,6 +7,7 @@ Base URL: `/api/v1` · Content type: JSON unless noted · Auth: none in MVP
 - JSON bodies are limited to **200 KB** → `413 PAYLOAD_TOO_LARGE`. Malformed JSON → `400 VALIDATION_ERROR`. Any other unreadable request (unsupported charset or `Content-Encoding`, corrupt gzip body) → `400 VALIDATION_ERROR`, never a 500.
 - Rate limits are per IP and per endpoint family (parse: 10/h, tailor: 20/h by default). Over the limit → `429 RATE_LIMITED` with a `Retry-After` header (seconds), `RateLimit`/`RateLimit-Policy` headers, and `details.retryAfterSec`.
 - CORS: only origins in `CORS_ORIGIN` are allowed. `X-Request-Id` and `Retry-After` are exposed to the browser.
+- Error responses that happen before an upload is read (e.g. `429`, `404`) are still delivered as JSON: the server discards the unread body (up to 6 MB) first. Above that it answers with `Connection: close`.
 
 ---
 
@@ -126,11 +127,11 @@ Note: in the example, "used by 200+ internal users" is only allowed if the origi
 | `PDF_ENCRYPTED` | 422 | File is password-protected | Ask for an unlocked file |
 | `RESUME_NOT_DETECTED` | 422 | The document doesn't look like a resume | Explain and let the user retry |
 | `RATE_LIMITED` | 429 | Too many requests | Show the retry-after time |
-| `AI_PROVIDER_ERROR` | 502 | Upstream AI failure after retries | Offer a retry |
+| `AI_PROVIDER_ERROR` | 502 | Upstream AI failure after retries (rate limit, 5xx/overloaded, network), or the AI declined the request (refusal after the fallback) | Offer a retry |
 | `AI_INVALID_OUTPUT` | 502 | Output failed the schema after the app-level retry | Offer a retry |
 | `AI_TIMEOUT` | 504 | Took longer than 90 s | Offer a retry |
 | `NOT_FOUND` | 404 | Unknown API route | Developer error (should not happen from the UI) |
-| `INTERNAL_ERROR` | 500 | Unexpected error | Generic message + requestId |
+| `INTERNAL_ERROR` | 500 | Unexpected error, including AI misconfiguration (missing/invalid API key, rejected request) | Generic message + requestId |
 
 ## 6. Versioning
 

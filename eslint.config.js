@@ -56,6 +56,38 @@ export default tseslint.config(
     },
   },
 
+  // LLM provider boundary (D-69): only apps/api/src/llm/ may touch an LLM SDK or a concrete
+  // client. Everything else depends on the LlmClient interface and createLlmClient(), so
+  // switching providers (LLM_PROVIDER) never requires code changes outside src/llm/.
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["apps/api/src/llm/**", "**/*.test.{ts,tsx}", "**/tests/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@anthropic-ai/sdk",
+              message: "Use the LlmClient interface from src/llm (provider boundary, D-69).",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@anthropic-ai/sdk/*", "openai", "openai/*", "ollama", "ollama/*"],
+              message: "LLM SDKs may only be used inside apps/api/src/llm (D-69).",
+            },
+            {
+              group: ["**/llm/AnthropicLlmClient", "**/llm/OllamaLlmClient"],
+              message:
+                "Don't depend on a concrete client: take an LlmClient, build it with createLlmClient() (D-69).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Tests may be looser
   {
     files: ["**/*.test.{ts,tsx}", "**/tests/**/*.{ts,tsx}"],

@@ -157,3 +157,24 @@ describe("parse rate limit", () => {
     expectError(await request(app).post(PARSE), 429, "RATE_LIMITED");
   });
 });
+
+describe("early error responses during an upload (found on Day 7)", () => {
+  const big = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(4 * 1024 * 1024, 0x20)]);
+  const attachBig = (req: request.Test) =>
+    req.attach("file", big, { filename: "big.pdf", contentType: "application/pdf" });
+
+  it("a rate-limited 4 MB upload gets a 429 response, not a connection reset", async () => {
+    const app = buildTestApp({ RATE_LIMIT_PARSE_PER_HOUR: "1" });
+    await request(app).post(PARSE); // uses up the budget
+    for (let i = 0; i < 5; i++) {
+      expectError(await attachBig(request(app).post(PARSE)), 429, "RATE_LIMITED");
+    }
+  });
+
+  it("a 4 MB upload to an unknown route gets a 404 response, not a connection reset", async () => {
+    const app = buildTestApp();
+    for (let i = 0; i < 3; i++) {
+      expectError(await attachBig(request(app).post("/api/v1/nope")), 404, "NOT_FOUND");
+    }
+  });
+});

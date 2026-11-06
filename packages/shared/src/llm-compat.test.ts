@@ -8,6 +8,7 @@ import { ResumeSchema, TailorResultSchema } from "./index";
  * (minimum/maximum), string length constraints, complex array constraints, or
  * additionalProperties other than false. The TS SDK strips unsupported constraints and
  * validates them client-side, but recursion and unsupported keywords/formats would fail.
+ * ($ref/$defs are supported; only recursion is not. See the note on the recursion test.)
  */
 
 type JsonNode = Record<string, unknown>;
@@ -89,7 +90,11 @@ describe.each([
   };
   collect(json, found);
 
-  it("is not recursive (no $ref / $defs)", () => {
+  // z.toJSONSchema defaults (reused: "inline", cycles: "ref") only emit $ref for a CYCLE, so no $ref
+  // here means "not recursive". $ref/$defs themselves ARE supported by Claude: the SDK's converter
+  // emits them for reused sub-schemas. That exact SDK output is checked in
+  // apps/api/src/llm/outputFormat.test.ts (D-62).
+  it("is not recursive (default conversion needs no $ref)", () => {
     expect(found.keywords.has("$ref")).toBe(false);
     expect(found.keywords.has("$defs")).toBe(false);
   });

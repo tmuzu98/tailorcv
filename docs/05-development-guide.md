@@ -56,7 +56,12 @@ npm run dev                       # api on :4000, web on :5173
 
 ## 6. Testing rules
 
-- CI **never** calls the real Claude API. Tests use `FakeLlmClient` with fixture responses.
+- CI **never** calls the real Claude API. Tests use `FakeLlmClient` (`apps/api/src/llm/FakeLlmClient.ts`): `new FakeLlmClient().enqueue({ data }, { error: new AppError("AI_TIMEOUT") })`. Queued data is validated against the caller's schema, so stale fixtures fail. Services take an `LlmClient`, never the SDK.
+- **Switching LLM providers:** one line in `apps/api/.env`: `LLM_PROVIDER=ollama` (local, free; default in development) or `LLM_PROVIDER=anthropic` (needs `ANTHROPIC_API_KEY`). Restart the API. The startup log names the provider and model. Never branch on the provider in services; add providers as new `LlmClient` classes and a case in `createLlmClient()`.
+- **LLM provider boundary (D-69):** only `apps/api/src/llm/` may import an LLM SDK or a concrete client (ESLint `no-restricted-imports` fails the build otherwise). Services build requests with the neutral types from `llm/LlmClient.ts`: content is a string or parts `{ type: "text", text }` / `{ type: "pdf", data }`, never SDK-shaped blocks.
+- **Switching providers** (e.g. Ollama → Claude before deploy): set `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in `apps/api/.env`, restart, run `npm run llm:smoke`. **No code changes.** Then re-check prompt quality on the new provider (ADR-012).
+- **Adding a provider** (e.g. another hosted API): (1) new class in `src/llm/` implementing `LlmClient`, translating the neutral content and using `parseStructuredText` for validation; (2) env vars + a value in the `LLM_PROVIDER` enum; (3) a case in `createLlmClient()`; (4) a harness in `tests/contract/llmClient.contract.test.ts` and make it pass (same error codes, retry rule, no content in logs); (5) docs + `.env.example`. Nothing outside `src/llm/` changes.
+- To check the selected provider/model: `npm run llm:smoke -w @tailorcv/api` (one tiny call, reads `apps/api/.env`). Never in tests or CI.
 - Every service gets unit tests. Every route gets an integration test (Supertest).
 - API integration tests build the app with `buildTestApp(envOverrides)` (`apps/api/tests/helpers/app.ts`): silent logger, test env. To test middleware in isolation, mount it on a small `express()` app with `requestId()` + `errorHandler()`.
 - After writing tests, break the code once on purpose to prove they fail (D-33).

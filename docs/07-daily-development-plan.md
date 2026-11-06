@@ -161,14 +161,18 @@
 **Goal:** one reliable, testable wrapper around the Claude API.
 **Tasks:** AI-1
 
-- [ ] Install `@anthropic-ai/sdk`. Add `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` to env validation
-- [ ] `llm/LlmClient.ts` interface: `generateStructured<T>({ system, content, schema, effort, maxTokens })`
-- [ ] `llm/AnthropicLlmClient.ts`: `messages.parse()` + `zodOutputFormat`, adaptive thinking, explicit effort, refusal fallback beta, cached system prompt, 90 s timeout
-- [ ] Check `stop_reason` (`refusal`, `max_tokens`) before using the output
-- [ ] Map typed SDK errors → `AI_PROVIDER_ERROR` / `AI_TIMEOUT` / `AI_INVALID_OUTPUT`. Do one app-level retry on schema failure
-- [ ] Log token usage + duration + prompt version (no content)
-- [ ] `llm/FakeLlmClient.ts`: returns fixture responses, can simulate errors
-- [ ] Smoke script `npm run llm:smoke`: one tiny real call to confirm the key and model work
+- [x] Install `@anthropic-ai/sdk`. Add `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` to env validation (+ `LLM_TIMEOUT_MS`; key required in production only, D-65)
+- [x] `llm/LlmClient.ts` interface: `generateStructured<T>({ system, content, schema, effort, maxTokens })` (+ `promptVersion`)
+- [x] `llm/AnthropicLlmClient.ts`: ~~`messages.parse()` + `zodOutputFormat`~~ `beta.messages.create()` + `betaZodOutputFormat` + own zod validation (D-63), adaptive thinking, explicit effort, refusal fallback beta, cached system prompt, 90 s timeout
+- [x] Check `stop_reason` (`refusal`, `max_tokens`) before using the output
+- [x] Map typed SDK errors → `AI_PROVIDER_ERROR` / `AI_TIMEOUT` / `AI_INVALID_OUTPUT` (+ `INTERNAL_ERROR` for our 4xx, D-64). Do one app-level retry on schema failure
+- [x] Log token usage + duration + prompt version (no content)
+- [x] `llm/FakeLlmClient.ts`: returns fixture responses, can simulate errors
+- [x] Smoke script `npm run llm:smoke`: one tiny real call to confirm the key and model work. **Ran green on local Ollama (`llama3`); a real Claude call is deferred until a key exists (OD-10)**
+- [x] *(Added, D-68)* `OllamaLlmClient` for free local development + `LLM_PROVIDER` switch (production refuses `ollama`)
+- [x] *(Added, D-69)* Provider-neutral content types, ESLint provider boundary, LLM client contract suite (switching = config only)
+- [x] *(Added)* Final structured-outputs check against the SDK's exact schema output (`outputFormat.test.ts`, D-62)
+- [x] *(Added, bug found today)* Error responses drain unread upload bodies first, so a rate-limited upload gets its 429 instead of a connection reset (D-66)
 
 **Deliverable:** LLM layer with a real and a fake implementation.
 **Exit check:** the smoke script succeeds, and unit tests pass using the fake client.
@@ -435,7 +439,8 @@
 **Tasks:** PLT-9 (if skipped) · PLT-10 · PLT-11
 
 - [ ] API Dockerfile (or Render native Node) + production start script
-- [ ] Deploy the API to Render/Fly.io with production env vars (`ANTHROPIC_API_KEY`, `CORS_ORIGIN`, limits)
+- [ ] **Resolve OD-10 first:** pick the hosted LLM provider (Claude API credit, or an alternative) and get a key. Run `npm run llm:smoke` with `LLM_PROVIDER=anthropic` (or the chosen provider), and re-check the parse/tailor prompts on it (they were developed on local Ollama, ADR-012)
+- [ ] Deploy the API to Render/Fly.io with production env vars (`LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `CORS_ORIGIN`, `TRUST_PROXY=1`, limits)
 - [ ] Deploy the web to Vercel with `VITE_API_BASE_URL`
 - [ ] Custom domain + HTTPS (optional)
 - [ ] Uptime monitor on `/api/v1/health`, log drain
@@ -473,7 +478,7 @@
 | 4 | Shared schemas | ✅ |
 | 5 | Errors & security 🛟 → **M1.1** | ✅ |
 | 6 | PDF upload & validation | ✅ |
-| 7 | LLM client | ⬜ |
+| 7 | LLM client | ✅ (smoke green on local Ollama; real Claude call deferred, OD-10) |
 | 8 | AI resume parsing | ⬜ |
 | 9 | Parse endpoint + FE plumbing | ⬜ |
 | 10 | Upload page | ⬜ |
