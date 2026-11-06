@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 9 ✅ complete (local, uncommitted)**. Next = **Day 10**, after the user says to commit/push Day 9 |
-| Branch | `main`. Day 9 work is **uncommitted**; `origin/main` is at Day 8 (`848ce6c`) |
+| Current day (per `07-daily-development-plan.md`) | **Day 9 ✅ complete (pushed)**. Next = **Day 10** (started in the same session) |
+| Branch | `main` → in sync with `origin/main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `848ce6c docs: log Day 8 push` (pushed). Day 9 not committed yet (D-71) |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **277 tests**: shared 53, web 31, api 193). Builds ✅ (web bundle 438 KB / 134 KB gzip). GitHub CI last green on Day 8 |
+| Last commit | `docs: log Day 9 push` (pushed). Day 9 code commit `0f85314` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **277 tests**: shared 53, web 31, api 193). Builds ✅ (web bundle 438 KB / 134 KB gzip). **GitHub CI ✅ green on Day 9** (run 42309869605) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`). `POST /api/v1/resumes/parse` now returns a real parsed resume (7–20 s locally) |
 
-**Next action:** Wait for the user's go-ahead to commit/push Day 9 (D-71). Then Day 10: upload page (UI primitives, dropzone + client checks, `useParseResume` mutation with a long-wait loading state, friendly errors + retry, success → store → `/review`, component tests).
+**Next action:** Day 10: upload page (UI primitives, dropzone + client checks, `useParseResume` mutation with a long-wait loading state, friendly errors + retry, success → store → `/review`, component tests).
 
 **Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
@@ -507,8 +507,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 8. **Audit:** production deps 0 vulnerabilities; full 10 moderate (known dev-only `minimatch`, Known Issue #1).
 - Not covered yet: clicking through the UI in a real browser (the upload page arrives on Day 10).
 
-**Exit check met?** ✅ `curl -F file=@sample.pdf localhost:4000/api/v1/resumes/parse` returns a Resume (real, local Ollama). FE data layer ready. **Not committed** (waiting for the user, D-71).
-**Next session:** after the user's go-ahead → commit/push Day 9 → Day 10 (upload page).
+**Exit check met?** ✅ `curl -F file=@sample.pdf localhost:4000/api/v1/resumes/parse` returns a Resume (real, local Ollama). FE data layer ready.
+
+**Push:** the user said "lets push day 9 and start day 10". Secret scan clean. Committed `0f85314 feat: real parse endpoint, AI deadline and frontend data layer (Day 9)`, pushed, **GitHub CI green** (run 42309869605).
+**Next session:** Day 10 (upload page), started right away.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):
