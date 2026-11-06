@@ -3,7 +3,12 @@ import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { parseEnv } from "../config/env";
-import { AnthropicLlmClient, OllamaLlmClient, createLlmClient } from "./index";
+import { AnthropicLlmClient, DeadlineLlmClient, OllamaLlmClient, createLlmClient } from "./index";
+
+const innerOf = (client: unknown) => {
+  expect(client).toBeInstanceOf(DeadlineLlmClient);
+  return (client as DeadlineLlmClient).inner;
+};
 
 function capture() {
   const lines: string[] = [];
@@ -27,7 +32,7 @@ describe("createLlmClient (the provider switch)", () => {
       LLM_PROVIDER: "ollama",
       OLLAMA_MODEL: "llama3",
     });
-    expect(createLlmClient(env, logger)).toBeInstanceOf(OllamaLlmClient);
+    expect(innerOf(createLlmClient(env, logger))).toBeInstanceOf(OllamaLlmClient);
     expect(logs()[0]).toMatchObject({ msg: expect.stringContaining("ollama"), model: "llama3" });
   });
 
@@ -38,7 +43,7 @@ describe("createLlmClient (the provider switch)", () => {
       LLM_PROVIDER: "anthropic",
       ANTHROPIC_API_KEY: "sk-ant-x",
     });
-    expect(createLlmClient(env, logger)).toBeInstanceOf(AnthropicLlmClient);
+    expect(innerOf(createLlmClient(env, logger))).toBeInstanceOf(AnthropicLlmClient);
     expect(logs()[0]).toMatchObject({ msg: "LLM provider: anthropic", model: "claude-opus-5-5" });
   });
 
@@ -48,7 +53,7 @@ describe("createLlmClient (the provider switch)", () => {
       parseEnv({ NODE_ENV: "development", LLM_PROVIDER: "anthropic" }),
       logger,
     );
-    expect(client).not.toBeInstanceOf(AnthropicLlmClient);
+    expect(innerOf(client)).not.toBeInstanceOf(AnthropicLlmClient);
     await expect(
       client.generateStructured({
         promptVersion: "x",
@@ -59,5 +64,23 @@ describe("createLlmClient (the provider switch)", () => {
         maxTokens: 10,
       }),
     ).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  });
+
+  it("wraps every provider in the overall deadline: 5 min for ollama, 120 s for anthropic", () => {
+    const { logger } = capture();
+    const ollama = createLlmClient(
+      parseEnv({ LLM_PROVIDER: "ollama" }),
+      logger,
+    ) as DeadlineLlmClient;
+    const claude = createLlmClient(
+      parseEnv({ LLM_PROVIDER: "anthropic", ANTHROPIC_API_KEY: "sk-ant-x" }),
+      logger,
+    ) as DeadlineLlmClient;
+    expect(ollama.deadlineMs).toBe(300_000);
+    expect(claude.deadlineMs).toBe(120_000);
+    expect(
+      (createLlmClient(parseEnv({ LLM_DEADLINE_MS: "5000" }), logger) as DeadlineLlmClient)
+        .deadlineMs,
+    ).toBe(5000);
   });
 });

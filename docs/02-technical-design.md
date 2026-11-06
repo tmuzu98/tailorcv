@@ -96,9 +96,9 @@ resumeParser/
 │   │   │   │   ├── resume-view/   # Read-only HTML view of the resume JSON
 │   │   │   │   ├── tailor/        # JD form, change list, keyword chips
 │   │   │   │   └── pdf-export/    # @react-pdf templates + download button
-│   │   │   ├── api/           # typed fetch client + query hooks
+│   │   │   ├── api/           # client.ts (apiRequest, ApiError), resumes.ts, errorMessages.ts, health.ts
 │   │   │   ├── components/ui/ # Button, Card, Spinner, Alert...
-│   │   │   └── store/         # session state (parsed resume, JD, result)
+│   │   │   └── state/         # sessionContext.ts + session.tsx (React context, sessionStorage)
 │   │   └── tests/
 │   └── api/                   # Express backend
 │       ├── src/
@@ -106,7 +106,7 @@ resumeParser/
 │       │   ├── app.ts         # express app factory (testable)
 │       │   ├── config/env.ts  # zod-validated env vars
 │       │   ├── routes/        # health, resumes (createResumesRouter)
-│       │   ├── controllers/
+│       │   ├── controllers/   # resumesController (HTTP only: validate → service → JSON, abort on disconnect)
 │       │   ├── services/      # pdfValidation, resumeParser + resumeNormalizer (Day 8), jobTailor, guardrail
 │       │   ├── llm/           # LlmClient, AnthropicLlmClient, OllamaLlmClient (dev), FakeLlmClient, createLlmClient = provider switch (Day 7); prompts/parse.v1.ts (Day 8), tailor (Day 13)
 │       │   ├── middleware/    # requestId, requestLogger, errorHandler (+404), rateLimit, upload
@@ -258,7 +258,7 @@ TailorResult = {
 | `max_tokens` | 16000 | Non-streaming. A resume JSON fits easily |
 | Refusal fallback | beta `server-side-fallback-2026-07-01` + `fallbacks: "default"` | `stop_reason` is checked first: `refusal` (whole chain declined) → `AI_PROVIDER_ERROR` "declined", category logged, no retry. `max_tokens` (truncated JSON) → `AI_INVALID_OUTPUT`, no retry |
 | Retries | SDK default `maxRetries: 2` (408/409/429/5xx/network) | Plus one app-level retry when the answer is invalid JSON or fails the zod schema (`MAX_ATTEMPTS = 2`) |
-| Timeout | 90 s per request (`LLM_TIMEOUT_MS`) | Per attempt: the SDK also retries timeouts, so the worst case is about 3 × 90 s (Parking Lot: overall deadline). Frontend shows progress steps meanwhile |
+| Timeout | 90 s per attempt (`LLM_TIMEOUT_MS`) + **overall deadline per call incl. all retries** (`LLM_DEADLINE_MS`: 120 s Claude, 5 min Ollama; D-72) | `withDeadline` wraps every client from `createLlmClient()`: aborts through the neutral `signal`, stops waiting even if a client ignores it, → `AI_TIMEOUT`. A client disconnect also aborts the call (controller). Frontend shows progress steps meanwhile |
 | Prompt caching | `cache_control` on the stable system prompt | Lowers cost when the same resume is re-tailored |
 | Errors | Typed SDK errors, most specific first: `APIConnectionTimeoutError` → `AI_TIMEOUT`; `APIConnectionError`, 429, 5xx/529 → `AI_PROVIDER_ERROR`; other 4xx (400 malformed, 401/403 key, 404 model) → `INTERNAL_ERROR` (our bug/config, D-64) | Logged with status, error type and upstream request id only. See API spec §5 |
 | Cost tracking | One `llm call completed` log line per call: prompt version, effort, model, served-by model, attempt, stop reason, input/output/cache-read/cache-creation tokens, duration | Never log the prompt, document or answer (tested) |
@@ -272,8 +272,9 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 ### 6.4 Frontend state & flow
 
-- **Session store** (React context or Zustand): `{ file, parsedResume, jobDescription, tailorResult }`. Kept in memory only. It is optionally mirrored to `sessionStorage` so a page refresh doesn't lose work (wrapped in try/catch).
-- **Routes**: `/` (upload) → `/review` → `/job` → `/result`. Route guards send the user back if the required state is missing.
+- **Session store** (Day 9, React context, D-73): `{ parsed: ParseResponse | null, jobDescription, tailorResult: TailorResponse | null }` in `src/state/` (`sessionContext.ts`: context, types, storage helpers, `useSession`; `session.tsx`: `<SessionProvider>`). Mirrored to `sessionStorage` (`tailorcv.session.v1`) in try/catch, validated with the shared schemas on load (corrupt/old data is dropped). A new resume clears the old tailoring result. Never sent anywhere.
+- **API layer** (Day 9, `src/api/`): `apiRequest(path, { schema, … })` validates success bodies with the shared schemas and throws one `ApiError` (`code`, `status`, `requestId`, `details`) for server errors and for browser-side `NETWORK_ERROR` / `BAD_RESPONSE` / `ABORTED`. `toFriendlyError()` (`errorMessages.ts`) maps every code to a title, message and next action (`retry` / `choose-file` / `edit-input` / `wait`), typed so a new code without copy fails to compile. TanStack Query provides mutation state; mutations never auto-retry.
+- **Routes**: `/` (upload) → `/review` → `/job` → `/result`. Route guards (`RequireSession`) send the user back to the first step whose data is missing (`/review`, `/job` need a parsed resume; `/result` needs a tailoring result).
 - **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE).
 - **PDF export**: `<ResumeDocument resume={tailoredResume} template="classic" />` rendered with `@react-pdf/renderer`'s `pdf().toBlob()` and downloaded as `FirstName_LastName_<Company>.pdf`.
 - **HTML preview** and **PDF template** share one layout spec (section order, fonts) so they look the same.
@@ -320,6 +321,7 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 | `RATE_LIMIT_PARSE_PER_HOUR` | `10` | no |
 | `RATE_LIMIT_TAILOR_PER_HOUR` | `20` | no |
 | `LLM_TIMEOUT_MS` | `90000` | no |
+| `LLM_DEADLINE_MS` | `120000` (anthropic) / `300000` (ollama) | no (default depends on `LLM_PROVIDER`) |
 | `LLM_PROVIDER` | `ollama` / `anthropic` | no (default `ollama` in development/test, `anthropic` in production; production refuses `ollama`) |
 | `OLLAMA_BASE_URL` · `OLLAMA_MODEL` · `OLLAMA_TIMEOUT_MS` · `OLLAMA_NUM_CTX` | `http://localhost:11434` · `llama3` · `300000` · `8192` | no (local development only) |
 | `LOG_LEVEL` | `info` | no |

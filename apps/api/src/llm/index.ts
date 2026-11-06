@@ -4,6 +4,7 @@ import { AppError } from "../lib/errors";
 import { AnthropicLlmClient } from "./AnthropicLlmClient";
 import type { LlmClient } from "./LlmClient";
 import { OllamaLlmClient } from "./OllamaLlmClient";
+import { withDeadline } from "./withDeadline";
 
 export type {
   GenerateStructuredParams,
@@ -16,6 +17,7 @@ export type {
 export { AnthropicLlmClient } from "./AnthropicLlmClient";
 export { FakeLlmClient } from "./FakeLlmClient";
 export { OllamaLlmClient } from "./OllamaLlmClient";
+export { DeadlineLlmClient, withDeadline } from "./withDeadline";
 
 export type LlmEnv = Pick<
   Env,
@@ -23,6 +25,7 @@ export type LlmEnv = Pick<
   | "ANTHROPIC_API_KEY"
   | "ANTHROPIC_MODEL"
   | "LLM_TIMEOUT_MS"
+  | "LLM_DEADLINE_MS"
   | "OLLAMA_BASE_URL"
   | "OLLAMA_MODEL"
   | "OLLAMA_TIMEOUT_MS"
@@ -31,12 +34,18 @@ export type LlmEnv = Pick<
 
 /**
  * THE switch between LLM providers (D-68): set `LLM_PROVIDER` in apps/api/.env and restart.
+ * The returned client is wrapped in the overall deadline (`LLM_DEADLINE_MS`, D-72).
  * Nothing else in the app knows which provider is in use; everything takes an `LlmClient`.
  * - `ollama`: local development (default outside production). Free, private, weaker.
  * - `anthropic`: Claude. Required in production. Without a key (development only) it returns a
  *   client that fails each call with a clear, logged INTERNAL_ERROR instead of crashing at startup.
  */
 export function createLlmClient(env: LlmEnv, logger: Logger): LlmClient {
+  // Every provider gets the same overall per-call deadline (D-72).
+  return withDeadline(createProviderClient(env, logger), env.LLM_DEADLINE_MS, logger);
+}
+
+function createProviderClient(env: LlmEnv, logger: Logger): LlmClient {
   if (env.LLM_PROVIDER === "ollama") {
     logger.info(
       { llmProvider: "ollama", model: env.OLLAMA_MODEL, baseURL: env.OLLAMA_BASE_URL },

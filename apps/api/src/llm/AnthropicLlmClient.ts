@@ -69,17 +69,21 @@ export class AnthropicLlmClient implements LlmClient {
     for (let attempt = 1; ; attempt++) {
       let response: Anthropic.Beta.BetaMessage;
       try {
-        response = await this.client.beta.messages.create({
-          model: this.model,
-          max_tokens: params.maxTokens,
-          system: [{ type: "text", text: params.system, cache_control: { type: "ephemeral" } }],
-          messages: [{ role: "user", content: toClaudeContent(params.content) }],
-          thinking: { type: "adaptive" },
-          output_config: { effort: params.effort, format: { type, schema: jsonSchema } },
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
-        });
+        response = await this.client.beta.messages.create(
+          {
+            model: this.model,
+            max_tokens: params.maxTokens,
+            system: [{ type: "text", text: params.system, cache_control: { type: "ephemeral" } }],
+            messages: [{ role: "user", content: toClaudeContent(params.content) }],
+            thinking: { type: "adaptive" },
+            output_config: { effort: params.effort, format: { type, schema: jsonSchema } },
+            betas: [FALLBACK_BETA],
+            fallbacks: "default",
+          },
+          params.signal ? { signal: params.signal } : undefined,
+        );
       } catch (err) {
+        if (params.signal?.aborted) throw err; // cancelled on purpose: the caller maps it
         throw this.fromSdkError(err, { ...logBase, attempt });
       }
 
@@ -123,6 +127,7 @@ export class AnthropicLlmClient implements LlmClient {
         const retrying = attempt < MAX_ATTEMPTS;
         this.logger.warn({ llm: { ...callLog, retrying } }, "llm output failed schema validation");
         if (!retrying) throw new AppError("AI_INVALID_OUTPUT", { cause: err });
+        params.signal?.throwIfAborted();
       }
     }
   }

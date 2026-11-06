@@ -78,6 +78,7 @@ export class OllamaLlmClient implements LlmClient {
           ],
         },
         { ...logBase, attempt },
+        params.signal,
       );
 
       const usage = {
@@ -115,20 +116,27 @@ export class OllamaLlmClient implements LlmClient {
         const retrying = attempt < MAX_ATTEMPTS;
         this.logger.warn({ llm: { ...callLog, retrying } }, "llm output failed schema validation");
         if (!retrying) throw new AppError("AI_INVALID_OUTPUT", { cause: err });
+        params.signal?.throwIfAborted();
       }
     }
   }
 
-  private async chat(payload: unknown, log: Record<string, unknown>): Promise<OllamaChatResponse> {
+  private async chat(
+    payload: unknown,
+    log: Record<string, unknown>,
+    callerSignal?: AbortSignal,
+  ): Promise<OllamaChatResponse> {
+    const attemptTimeout = AbortSignal.timeout(this.timeoutMs);
     let res: Response;
     try {
       res = await fetch(`${this.baseURL}/api/chat`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: callerSignal ? AbortSignal.any([attemptTimeout, callerSignal]) : attemptTimeout,
       });
     } catch (err) {
+      if (callerSignal?.aborted) throw err; // cancelled on purpose: the caller maps it
       if (err instanceof DOMException && err.name === "TimeoutError") {
         this.logger.error({ llm: log }, "llm request timed out");
         throw new AppError("AI_TIMEOUT", { cause: err });

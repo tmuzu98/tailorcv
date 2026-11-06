@@ -4,12 +4,14 @@ import helmet from "helmet";
 import type { Logger } from "pino";
 import { API_PREFIX } from "@tailorcv/shared";
 import type { Env } from "./config/env";
+import type { LlmClient } from "./llm";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { REQUEST_ID_HEADER, requestId } from "./middleware/requestId";
 import { createRateLimiters } from "./middleware/rateLimit";
 import { requestLogger } from "./middleware/requestLogger";
 import { healthRouter } from "./routes/health";
 import { createResumesRouter } from "./routes/resumes";
+import { createResumeParserService } from "./services/resumeParserService";
 
 export const JSON_BODY_LIMIT = "200kb";
 
@@ -19,17 +21,19 @@ export interface AppDeps {
     "CORS_ORIGIN" | "TRUST_PROXY" | "RATE_LIMIT_PARSE_PER_HOUR" | "RATE_LIMIT_TAILOR_PER_HOUR"
   >;
   logger: Logger;
+  /** Built by createLlmClient(env) in server.ts (LLM_PROVIDER); tests pass a FakeLlmClient. */
+  llm: LlmClient;
 }
 
 /**
  * Express app factory. Kept separate from server.ts so tests can create an app without opening
- * a port. Dependencies are injected (LLM client and services join on Day 7+).
+ * a port. Dependencies are injected: the LLM client comes from outside, services are built here.
  *
  * Middleware order matters:
  * requestId → access log → security headers → CORS → JSON body → routes → 404 → error handler.
  * Rate limiters are created per app instance and applied per route (parse/tailor).
  */
-export function createApp({ env, logger }: AppDeps): Express {
+export function createApp({ env, logger, llm }: AppDeps): Express {
   const app = express();
   app.disable("x-powered-by");
   // Behind Render's proxy the client IP is in X-Forwarded-For; needed for per-IP rate limits.
@@ -48,7 +52,8 @@ export function createApp({ env, logger }: AppDeps): Express {
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   app.use(API_PREFIX, healthRouter);
-  app.use(API_PREFIX, createResumesRouter({ limiters: createRateLimiters(env) }));
+  const parser = createResumeParserService({ llm, logger });
+  app.use(API_PREFIX, createResumesRouter({ limiters: createRateLimiters(env), parser }));
 
   app.use(notFoundHandler());
   app.use(errorHandler());

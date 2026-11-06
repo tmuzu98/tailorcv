@@ -20,7 +20,7 @@ export interface ResumeParserService {
    * PDF (already validated by pdfValidationService) → structured `Resume` + meta.
    * Throws RESUME_NOT_DETECTED, or the LLM client's AI_* / INTERNAL_ERROR codes.
    */
-  parse(pdf: Uint8Array, info: { pages: number }): Promise<ParseResponse>;
+  parse(pdf: Uint8Array, info: { pages: number; signal?: AbortSignal }): Promise<ParseResponse>;
 }
 
 /** Plain text of the PDF, used only for deterministic fixes (email rescue). Never logged. */
@@ -42,7 +42,7 @@ export function createResumeParserService(deps: {
   logger: Logger;
 }): ResumeParserService {
   return {
-    async parse(pdf, { pages }) {
+    async parse(pdf, { pages, signal }) {
       const started = performance.now();
       const result = await deps.llm.generateStructured({
         promptVersion: PARSE_PROMPT_VERSION,
@@ -51,6 +51,7 @@ export function createResumeParserService(deps: {
         schema: ParseLlmOutputSchema,
         effort: PARSE_EFFORT,
         maxTokens: PARSE_MAX_TOKENS,
+        ...(signal && { signal }),
       });
 
       if (!result.data.isResume) {

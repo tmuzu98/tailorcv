@@ -41,6 +41,11 @@ const EnvSchema = z
      * `anthropic` in production. Production refuses `ollama`.
      */
     LLM_PROVIDER: z.enum(["anthropic", "ollama"]).optional(),
+    /**
+     * Overall budget per AI call incl. all retries (D-72). Default: 120 s for anthropic,
+     * 5 min for ollama (local models are slow).
+     */
+    LLM_DEADLINE_MS: z.coerce.number().int().min(1000).max(1_800_000).optional(),
     OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
     OLLAMA_MODEL: z.string().min(1).default("llama3"),
     /** Local models are slow: 5 min default. */
@@ -64,10 +69,15 @@ const EnvSchema = z
       });
     }
   })
-  .transform((env) => ({
-    ...env,
-    LLM_PROVIDER: env.LLM_PROVIDER ?? (env.NODE_ENV === "production" ? "anthropic" : "ollama"),
-  }));
+  .transform((env) => {
+    const LLM_PROVIDER =
+      env.LLM_PROVIDER ?? (env.NODE_ENV === "production" ? "anthropic" : "ollama");
+    return {
+      ...env,
+      LLM_PROVIDER,
+      LLM_DEADLINE_MS: env.LLM_DEADLINE_MS ?? (LLM_PROVIDER === "ollama" ? 300_000 : 120_000),
+    };
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 

@@ -171,8 +171,9 @@ function setup(h: Harness, opts: { timeoutMs?: number; baseURL?: string } = {}) 
     logger,
     timeoutMs: opts.timeoutMs ?? 5_000,
   });
-  const run = (content: LlmContent = SECRET) =>
+  const run = (content: LlmContent = SECRET, signal?: AbortSignal) =>
     client.generateStructured({
+      ...(signal && { signal }),
       promptVersion: "contract-v1",
       system: "SYSTEM PROMPT",
       content,
@@ -233,6 +234,15 @@ describe.each(HARNESSES)("LlmClient contract: $name", (h) => {
   it("too slow → AI_TIMEOUT", async () => {
     scenario = "slow";
     expect(await codeOf(setup(h, { timeoutMs: 200 }).run())).toBe("AI_TIMEOUT");
+  });
+
+  it("caller cancel (signal) → rethrown untouched, not mapped to an AI error", async () => {
+    scenario = "slow";
+    const controller = new AbortController();
+    const pending = setup(h).run(SECRET, controller.signal);
+    setTimeout(() => controller.abort(new Error("cancelled by caller")), 50);
+    const err = await pending.catch((e: unknown) => e);
+    expect(err).not.toBeInstanceOf(AppError);
   });
 
   it("provider unreachable → AI_PROVIDER_ERROR", async () => {

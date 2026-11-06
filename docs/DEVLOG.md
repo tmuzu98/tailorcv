@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 8 ✅ complete (pushed)**. Next = **Day 9** (started in the same session) |
-| Branch | `main` → in sync with `origin/main` |
+| Current day (per `07-daily-development-plan.md`) | **Day 9 ✅ complete (local, uncommitted)**. Next = **Day 10**, after the user says to commit/push Day 9 |
+| Branch | `main`. Day 9 work is **uncommitted**; `origin/main` is at Day 8 (`848ce6c`) |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 8 push` (pushed). Day 8 code commit `30a093c` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **235 tests**: shared 53, web 5, api 177). **GitHub CI ✅ green on Day 8** (run 42306856344) |
+| Last commit | `848ce6c docs: log Day 8 push` (pushed). Day 9 not committed yet (D-71) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **277 tests**: shared 53, web 31, api 193). Builds ✅ (web bundle 438 KB / 134 KB gzip). GitHub CI last green on Day 8 |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env`. Parse check: `npm run parse:pdf -w @tailorcv/api` |
+| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`). `POST /api/v1/resumes/parse` now returns a real parsed resume (7–20 s locally) |
 
-**Next action:** Day 9: real parse endpoint (wire `LlmClient` into `createApp`, replace the stub), overall AI deadline (D-72), FE API client + error messages + React-context session store + route guards.
+**Next action:** Wait for the user's go-ahead to commit/push Day 9 (D-71). Then Day 10: upload page (UI primitives, dropzone + client checks, `useParseResume` mutation with a long-wait loading state, friendly errors + retry, success → store → `/review`, component tests).
 
 **Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
@@ -122,6 +122,9 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-75 | Parse design: the model fills **`ParseLlmOutputSchema`** (Resume without ids, bullets/details as strings, + `isResume`), versioned **together** with `PARSE_SYSTEM_PROMPT` as `parse-v1` in `llm/prompts/parse.v1.ts`; internal to the API (not part of the API contract, so `packages/shared` and the API spec are unchanged). `resumeParserService` sends a neutral PDF part + instruction, effort `low`, 16k tokens; `isResume=false` or nothing usable → `RESUME_NOT_DETECTED`; output re-validated against `ResumeSchema` | Server-assigned ids are stable and can't be hallucinated; the flag gives a clean "not a resume" path; prompt+schema versioning keeps logs/`meta.promptVersion` meaningful | Tech Design §6.1 |
 | 2026-11-06 | D-76 | **Deterministic post-processing** (`services/resumeNormalizer.ts`) that never adds content: ids, trim/collapse, strip bullet glyphs, drop placeholders/empties, drop entries missing a required field (counted), recover skills put in `category`, move a degree line from details to degree, start = end date → end date only, links must look like URLs, **email rescued from the PDF text** (unpdf) if the model missed it. Stats are logged as counts only | Fixes the real llama3 mistakes seen on Day 7/8 without depending on the model; a unit test checks every output string comes from the model output or the document text | Known Issue #8 |
 | 2026-11-06 | D-77 | Parse quality tooling: `tests/fixtures/pdfs/expected.ts` (expected content + `scoreParse` with "invented" checks), new `invoice.pdf` fixture, `npm run parse:pdf -w @tailorcv/api` (fixtures or `-- your.pdf [--json]`, local only). Prompt iterations happen in place until first commit (parse-v1 never shipped) | Measurable, repeatable accuracy notes instead of eyeballing | Dev Guide §4/§6 |
+| 2026-11-06 | D-78 | **Wiring:** `createApp({ env, logger, llm })`: `server.ts` builds `llm` with `createLlmClient(env, logger)` (so `LLM_PROVIDER` applies); `createApp` builds `resumeParserService`; `createResumesRouter({ limiters, parser })` → `parseResumeHandler(parser)` in `controllers/resumesController.ts` (HTTP only: validatePdf → parse → JSON). `buildTestApp(env, { llm })` defaults to `FakeLlmClient` | Dependency injection as planned (ADR-011); routes stay thin; tests never touch a real model | Tech Design §4 |
+| 2026-11-06 | D-79 | **Overall deadline implementation** (D-72): neutral `signal?: AbortSignal` on `GenerateStructuredParams`; clients pass it to their transport (SDK request option / `AbortSignal.any` with the per-attempt timeout) and rethrow aborts untouched (no mapping/logging), and stop retrying once aborted. `DeadlineLlmClient`/`withDeadline` wraps every client from `createLlmClient()`: aborts via the signal **and** races so it returns at the deadline even if a client ignores the signal → `AI_TIMEOUT`; a caller cancel passes through. `LLM_DEADLINE_MS` default 120 000 (anthropic) / 300 000 (ollama). The controller aborts the AI call when the HTTP client disconnects (`res.on("close")` before finish). Contract suite +1 scenario (caller cancel) | One budget regardless of provider/retries; no AI spend for responses nobody reads (verified: curl -m 1 → `request aborted`, no `llm call completed`) | Tech Design §6.3 |
+| 2026-11-06 | D-80 | **FE data layer:** `apiRequest` + `ApiError` (server codes + `NETWORK_ERROR`/`BAD_RESPONSE`/`ABORTED`), success bodies validated with the shared schemas; `parseResume(file)`; `toFriendlyError()` with `Record<ApiErrorCode, …>` copy + next action, server text only for `PDF_TOO_MANY_PAGES`, `Retry-After` → "about N seconds/minutes"; `health.ts` now uses `apiRequest`. Session = React context in `src/state/` (`sessionContext.ts` + `session.tsx`, split for Fast Refresh), sessionStorage `tailorcv.session.v1` validated on load, new resume clears the tailoring result. Guards via `RequireSession`. `AppProviders` (TanStack Query, mutations never auto-retry + session) used by `main.tsx` and tests. `zod` declared as a direct web dependency (was a phantom dependency via hoisting) | One error shape for the UI, contract checks in the browser too, refresh-safe session, no crash in private mode | Tech Design §6.4 |
 
 ---
 
@@ -143,7 +146,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2 | Info | `npm run typecheck` errors with "No workspaces found" until workspaces exist | Day 1 | ✅ Resolved Day 2 |
 | 3 | Low | npm 11 warns on every install about blocked install scripts (`esbuild`, `fsevents`). Harmless noise (D-21) | Day 2 | Accepted. If needed: `npm install-scripts approve <pkg>` or `deny <pkg>` to silence |
 | 4 | Medium (process) | **npm quirk:** `npm install <pkgs> --workspace=<path>` sometimes installs but **doesn't save runtime deps** to the workspace `package.json` on the first run (happened 3× on Day 2; dev deps were fine). Also, installing a local workspace package by name (`@tailorcv/shared`) fails because it isn't on the registry | Day 2 | Workaround: **always check the workspace `package.json` after installing**, and re-run if missing. Add local packages by hand as `"@tailorcv/shared": "*"` then `npm install` |
-| 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod | Day 2 | Revisit on Day 20 (perf/a11y pass) |
+| 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod. **Day 9: 438 KB (134 KB gzipped) after TanStack Query** | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 | 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
 | 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) | **Day 8 update:** with parse-v1 + post-processing → **53/56 checks (95%), stable over 2 runs, zero invented content**; email, skills, degree, dates and links fixed. Still open on llama3: headline missed in 2/3 (it shares a line with contact details), location missed in 1/3.
@@ -470,6 +473,42 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Push:** the user said "yes push day 8 and start day 9". Secret scan clean. Committed `30a093c feat(api): add AI resume parsing service with parse-v1 prompt (Day 8)`, pushed, **GitHub CI green** (run 42306856344).
 **Next session:** Day 9 (started right away).
+
+### 2026-11-06: Session 11 (Day 9: Parse endpoint + frontend plumbing)
+**Day:** 9 (same session; started after the user said "yes push day 8 and start day 9")
+
+**Done**
+- **Day 8 push:** `30a093c` pushed, **GitHub CI green** (run 42306856344); DEVLOG push note `848ce6c`.
+- [BE-5] Real parse endpoint: `controllers/resumesController.ts`, `routes/resumes.ts` (stub removed), `createApp` builds the parser from the injected `llm`, `server.ts` uses `createLlmClient` (D-78).
+- Overall AI deadline + cancel on disconnect: `llm/withDeadline.ts`, signal support in both clients, `LLM_DEADLINE_MS` (D-79). Contract suite: + caller-cancel scenario (22 checks).
+- [FE-2/FE-3] `src/api/client.ts`, `resumes.ts`, `errorMessages.ts`; `health.ts` via `apiRequest`; `src/state/sessionContext.ts` + `session.tsx`; `app/RequireSession.tsx`, `AppProviders.tsx`, `queryClient.ts`; router guards; `main.tsx` providers. Installed `@tanstack/react-query` 5.107; declared `zod` in the web workspace (D-80).
+- Tests: API `parse.test.ts` rewritten for real responses (ParseResponse + meta, email rescue through the route, 4 AI error codes, 2 RESUME_NOT_DETECTED paths, "no AI call for files that fail validation"), `withDeadline.test.ts` (5), factory deadline test, contract cancel. Web: `client.test.ts` (7), `errorMessages.test.ts` (6), `session.test.tsx` (store 7 + guards 6). API 177 → **193**, web 5 → **31**, total **277**.
+- Docs (D-52): API spec §2 (stub note removed, AI step + cancel) and §5 (`AI_TIMEOUT` = overall deadline); Tech Design §4 tree, §6.3 timeout row, §6.4 (session, API layer, guards), §9 env (`LLM_DEADLINE_MS`); Dev Guide frontend conventions (+ Fast Refresh rule); `.env.example`; plan (Day 9 ticked, ✅).
+
+**Verified**
+- **Exit check, real:** API with local Ollama → `curl -F file=@resume-2column.pdf …/resumes/parse` → **200, contract-valid Resume in ~13 s**, everything correct (name, email, location, job, dates, both bullets verbatim, education, all 3 skills, 0 invented). `invoice.pdf` → 422 `RESUME_NOT_DETECTED`; `seven-pages.pdf` → 422 before any AI call. Startup log names the provider.
+- **Cancel on disconnect, real:** `curl -m 1` on a 2-page upload → server logged `request aborted`, and no `llm call completed` for that request (the Ollama call was cancelled).
+- Logs: 0 fixture text.
+- **Manual regression on `npm run dev` with real Ollama: 57/57** (script updated: real Resume check, invoice check, rate-limit loop uses empty requests so it doesn't trigger 45 AI calls), incl. a **real parse through the Vite proxy** (the browser's path).
+- Deliberate break (D-33): guards off, session save off, ABORTED mapping removed, deadline race removed, controller back to a stub → **16 tests failed** (web 5, API 11); restored → all green.
+- Lint: 2 `react-refresh/only-export-components` warnings → fixed by splitting helpers into `sessionContext.ts` / `queryClient.ts` (0 warnings).
+- `npm run check` ✅; `npm run build` ✅.
+
+**Decisions:** D-78 → D-80 (D-72/D-73 implemented).
+**Issues / blockers:** none. Known Issue #5 updated (bundle 438 KB).
+**Pre-push end-to-end pass, Days 5–9** (user: "test end to end whatever changes we made until day 9 before pushing anything"). All ✅:
+1. **Clean-copy CI simulation** (`npm ci` → lint 0 warnings, format, typecheck, 277 tests, build) ✅; `npm test` **5× in a row green**. (A first loop used root-level `npx vitest run`, which ignores the per-workspace configs, so web tests ran without jsdom: a check mistake, not flakiness. Re-run with `npm test`.)
+2. **Production bundle + real Ollama** (`dist/server.js`, development mode because production refuses ollama): 3 resumes → 200 (7–14 s, correct counts), invoice → 422; 0 errors, 0 fixture text in logs.
+3. **Production mode on the Claude path** (no key, so the built server pointed at a local fake Messages API via `ANTHROPIC_BASE_URL`): 200 real Resume. The fake API received Bearer auth, API version 2026-10-21, `claude-opus-5-5`, effort low, adaptive thinking, `json_schema` format, fallback beta + `fallbacks: "default"`, cached system prompt, and **content = native PDF `document` block + text**. 529 → 502 `AI_PROVIDER_ERROR`; 401 → 500 `INTERNAL_ERROR`.
+4. **AI failure cases through the real endpoint** (built server, Ollama): `LLM_DEADLINE_MS=2000` → **504 `AI_TIMEOUT` at 2.06 s** (a normal parse takes ~12 s); Ollama not running → 502 + `ollama serve` hint; missing model → 500 + `ollama pull` hint; anthropic without a key → 500 + startup warning.
+5. **Parse accuracy** (`npm run parse:pdf`): 18/19, 20/21, 15/16 (= Day 8, 53/56), invoice rejected.
+6. **Manual regression on `npm run dev` + real Ollama: 57/57.**
+7. **Frontend modules compile in the real Vite dev server:** 14 modules (providers, query client, router, guard, session, API client/resumes/errors/health, layout, pages) → 200, 0 errors; the shared package resolves in the browser build.
+8. **Audit:** production deps 0 vulnerabilities; full 10 moderate (known dev-only `minimatch`, Known Issue #1).
+- Not covered yet: clicking through the UI in a real browser (the upload page arrives on Day 10).
+
+**Exit check met?** ✅ `curl -F file=@sample.pdf localhost:4000/api/v1/resumes/parse` returns a Resume (real, local Ollama). FE data layer ready. **Not committed** (waiting for the user, D-71).
+**Next session:** after the user's go-ahead → commit/push Day 9 → Day 10 (upload page).
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

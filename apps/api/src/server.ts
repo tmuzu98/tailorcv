@@ -2,10 +2,13 @@ import { API_PREFIX } from "@tailorcv/shared";
 import { createApp } from "./app";
 import { loadEnv } from "./config/env";
 import { createLogger } from "./lib/logger";
+import { createLlmClient } from "./llm";
 
 const env = loadEnv();
 const logger = createLogger(env);
-const app = createApp({ env, logger });
+// LLM_PROVIDER picks the client (D-68); it's wrapped in the overall deadline (D-72).
+const llm = createLlmClient(env, logger);
+const app = createApp({ env, logger, llm });
 
 const server = app.listen(env.PORT, () => {
   logger.info(

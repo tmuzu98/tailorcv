@@ -199,13 +199,15 @@
 **Goal:** the parse endpoint is exposed, and the frontend is ready to call it.
 **Tasks:** BE-5 · FE-2 · FE-3
 
-- [ ] `routes/resumes.ts` + `controllers/resumesController.ts` → `POST /api/v1/resumes/parse`. **The route + upload/validation/rate limit already exist as a Day 6 stub (D-57): replace its `{ stub, pages }` response with the real `ParseResponse`, and remove the stub note from API spec §2**
-- [ ] Dependency injection: the app factory accepts an `LlmClient` (real in dev, fake in tests)
-- [ ] Integration tests (Supertest + fake LLM): happy path + every error code
-- [ ] FE `api/client.ts`: typed fetch wrapper, parses the standard error into an `ApiError`
-- [ ] FE `api/errorMessages.ts`: error code → friendly message + suggested action
-- [ ] FE session store (context or Zustand): `parsedResume`, `jobDescription`, `tailorResult`, mirrored to sessionStorage inside try/catch
-- [ ] Route guards (`/review` needs `parsedResume`, and so on)
+- [x] `routes/resumes.ts` + `controllers/resumesController.ts` → `POST /api/v1/resumes/parse`. **The route + upload/validation/rate limit already exist as a Day 6 stub (D-57): replace its `{ stub, pages }` response with the real `ParseResponse`, and remove the stub note from API spec §2**
+- [x] Dependency injection: the app factory accepts an `LlmClient` (real in dev, fake in tests)
+- [x] Integration tests (Supertest + fake LLM): happy path + every error code
+- [x] FE `api/client.ts`: typed fetch wrapper, parses the standard error into an `ApiError`
+- [x] FE `api/errorMessages.ts`: error code → friendly message + suggested action
+- [x] FE session store (~~context or Zustand~~ React context, D-73): `parsedResume`, `jobDescription`, `tailorResult`, mirrored to sessionStorage inside try/catch
+- [x] Route guards (`/review` needs `parsedResume`, and so on)
+- [x] *(Added, D-72)* Overall AI deadline (`withDeadline`, `LLM_DEADLINE_MS`) + cancel the AI call when the client disconnects
+- [x] *(Added)* TanStack Query provider (D-25), `zod` declared as a direct web dependency
 
 **Deliverable:** parse API done, and the FE data layer is ready.
 **Exit check:** `curl -F file=@sample.pdf localhost:4000/api/v1/resumes/parse` returns a Resume.
@@ -480,7 +482,7 @@
 | 6 | PDF upload & validation | ✅ |
 | 7 | LLM client | ✅ (smoke green on local Ollama; real Claude call deferred, OD-10) |
 | 8 | AI resume parsing | ✅ |
-| 9 | Parse endpoint + FE plumbing | ⬜ |
+| 9 | Parse endpoint + FE plumbing | ✅ |
 | 10 | Upload page | ⬜ |
 | 11 | Review page 🛟 → **M1.2** | ⬜ |
 | 12 | Guardrail service | ⬜ |

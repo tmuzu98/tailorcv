@@ -1,11 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
+import { AppProviders } from "./AppProviders";
 import { routes } from "./router";
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  return render(<RouterProvider router={router} />);
+  return render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  );
 }
 
 function mockFetchJson(body: unknown, status = 200) {

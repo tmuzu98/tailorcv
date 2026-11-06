@@ -31,6 +31,12 @@ export interface GenerateStructuredParams<S extends z.ZodType> {
   schema: S;
   effort: LlmEffort;
   maxTokens: number;
+  /**
+   * Cancels the call (e.g. the overall deadline fired, or the HTTP client disconnected).
+   * Clients pass it to their transport and, once aborted, rethrow without mapping or logging:
+   * `withDeadline` decides what an abort means.
+   */
+  signal?: AbortSignal;
 }
 
 export interface LlmUsage {

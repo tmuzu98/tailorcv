@@ -34,8 +34,7 @@ Upload a PDF resume and get back a structured `Resume`.
 
 - The file must start with the PDF signature `%PDF-` (within the first 1024 bytes). The declared type is only a pre-check: `application/pdf`, `application/x-pdf` and `application/octet-stream` are accepted, anything else → `415` with `details.declaredType`.
 - Checks run in this order: rate limit → upload (size, field) → type → PDF structure (encryption, page count). A rate-limited client gets `429` before the upload is read.
-
-> **Day 6–8 stub:** until the AI parsing lands on Day 9, a valid upload returns `200 { "stub": true, "pages": <n> }` instead of the response below. The web app does not call this endpoint before Day 9.
+- Then the AI parses the PDF (`parse-v1`, see Tech Design §6.1). Typical time: a few seconds with Claude; 7–20 s with local Ollama. If the client disconnects first, the AI call is cancelled.
 
 **200**
 ```json
@@ -129,7 +128,7 @@ Note: in the example, "used by 200+ internal users" is only allowed if the origi
 | `RATE_LIMITED` | 429 | Too many requests | Show the retry-after time |
 | `AI_PROVIDER_ERROR` | 502 | Upstream AI failure after retries (rate limit, 5xx/overloaded, network), or the AI declined the request (refusal after the fallback) | Offer a retry |
 | `AI_INVALID_OUTPUT` | 502 | Output failed the schema after the app-level retry | Offer a retry |
-| `AI_TIMEOUT` | 504 | Took longer than 90 s | Offer a retry |
+| `AI_TIMEOUT` | 504 | The AI call exceeded its overall deadline, including retries (`LLM_DEADLINE_MS`: 120 s with Claude, 5 min with local Ollama) | Offer a retry |
 | `NOT_FOUND` | 404 | Unknown API route | Developer error (should not happen from the UI) |
 | `INTERNAL_ERROR` | 500 | Unexpected error, including AI misconfiguration (missing/invalid API key, rejected request) | Generic message + requestId |
 

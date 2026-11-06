@@ -1,6 +1,9 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { ApiErrorResponseSchema, type ErrorCode } from "@tailorcv/shared";
+import { ApiErrorResponseSchema, ParseResponseSchema, type ErrorCode } from "@tailorcv/shared";
+import { AppError } from "../../src/lib/errors";
+import { FakeLlmClient } from "../../src/llm/FakeLlmClient";
+import { PARSE_PROMPT_VERSION, type ParseLlmOutput } from "../../src/llm/prompts/parse.v1";
 import { MAX_UPLOAD_BYTES } from "../../src/middleware/upload";
 import { buildTestApp } from "../helpers/app";
 import { pdfFixturePath, readPdfFixture, type PdfFixture } from "../helpers/fixtures";
@@ -15,19 +18,56 @@ function expectError(res: request.Response, status: number, code: ErrorCode) {
   return body.error;
 }
 
-describe("POST /api/v1/resumes/parse (Day 6 stub: upload + validation)", () => {
+/** A valid model answer (the fake LLM returns it for every call unless a test queues another). */
+const MODEL_OUTPUT: ParseLlmOutput = {
+  isResume: true,
+  basics: { fullName: "Alex Example", headline: "Senior Software Engineer", links: [] },
+  experience: [
+    {
+      company: "Acme Widgets Inc.",
+      title: "Senior Software Engineer",
+      startDate: "2021",
+      endDate: "Present",
+      bullets: ["Built a TypeScript order service."],
+    },
+  ],
+  education: [{ institution: "State University", degree: "B.Sc.", details: [] }],
+  skills: [{ category: "Skills", items: ["TypeScript"] }],
+  projects: [],
+  certifications: [],
+  additionalSections: [],
+};
+const fakeLlm = () => new FakeLlmClient(() => MODEL_OUTPUT);
+
+describe("POST /api/v1/resumes/parse (upload + validation + AI parsing)", () => {
   // High limit so these tests never trip the rate limiter.
-  const app = buildTestApp({ RATE_LIMIT_PARSE_PER_HOUR: "1000" });
+  const llm = fakeLlm();
+  const app = buildTestApp({ RATE_LIMIT_PARSE_PER_HOUR: "1000" }, { llm });
 
   describe("accepts valid PDFs", () => {
     it.each<[PdfFixture, number]>([
       ["resume-1page.pdf", 1],
       ["resume-2page.pdf", 2],
       ["resume-2column.pdf", 1],
-    ])("%s → 200 with %i page(s)", async (fixture, pages) => {
+    ])("%s → 200 with a contract-valid ParseResponse (%i page(s))", async (fixture, pages) => {
       const res = await request(app).post(PARSE).attach("file", pdfFixturePath(fixture));
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ stub: true, pages });
+      const body = ParseResponseSchema.parse(res.body);
+      expect(body.meta).toEqual({
+        pages,
+        durationMs: expect.any(Number),
+        promptVersion: PARSE_PROMPT_VERSION,
+      });
+      expect(body.resume.experience[0]).toMatchObject({
+        id: "exp_1",
+        company: "Acme Widgets Inc.",
+      });
+      expect(body.resume.basics.fullName).toBe("Alex Example");
+    });
+
+    it("rescues the email from the uploaded PDF text (the fake model left it out)", async () => {
+      const res = await request(app).post(PARSE).attach("file", pdfFixturePath("resume-1page.pdf"));
+      expect(res.body.resume.basics.email).toBe("alex@example.com");
     });
 
     it("accepts application/octet-stream as the declared type (magic bytes decide)", async () => {
@@ -142,9 +182,51 @@ describe("POST /api/v1/resumes/parse (Day 6 stub: upload + validation)", () => {
   });
 });
 
+describe("POST /api/v1/resumes/parse: AI errors reach the client with the right code", () => {
+  const upload = (app: ReturnType<typeof buildTestApp>) =>
+    request(app).post(PARSE).attach("file", pdfFixturePath("resume-1page.pdf"));
+
+  it.each<[string, AppError, number, ErrorCode]>([
+    ["timeout", new AppError("AI_TIMEOUT"), 504, "AI_TIMEOUT"],
+    ["provider down", new AppError("AI_PROVIDER_ERROR"), 502, "AI_PROVIDER_ERROR"],
+    ["invalid output", new AppError("AI_INVALID_OUTPUT"), 502, "AI_INVALID_OUTPUT"],
+    ["misconfiguration", new AppError("INTERNAL_ERROR"), 500, "INTERNAL_ERROR"],
+  ])("%s → %i %s", async (_name, error, status, code) => {
+    const app = buildTestApp({}, { llm: new FakeLlmClient().enqueue({ error }) });
+    expectError(await upload(app), status, code);
+  });
+
+  it("not a resume (model says so) → 422 RESUME_NOT_DETECTED", async () => {
+    const llm = new FakeLlmClient().enqueue({ data: { ...MODEL_OUTPUT, isResume: false } });
+    expectError(await upload(buildTestApp({}, { llm })), 422, "RESUME_NOT_DETECTED");
+  });
+
+  it("nothing usable extracted → 422 RESUME_NOT_DETECTED", async () => {
+    const llm = new FakeLlmClient().enqueue({
+      data: {
+        ...MODEL_OUTPUT,
+        basics: { fullName: "", links: [] },
+        experience: [],
+        education: [],
+        skills: [],
+      },
+    });
+    expectError(await upload(buildTestApp({}, { llm })), 422, "RESUME_NOT_DETECTED");
+  });
+
+  it("does not call the AI for files that fail validation", async () => {
+    const llm = fakeLlm();
+    const app = buildTestApp({}, { llm });
+    await request(app).post(PARSE).attach("file", pdfFixturePath("seven-pages.pdf"));
+    await request(app).post(PARSE).attach("file", pdfFixturePath("encrypted.pdf"));
+    await request(app).post(PARSE);
+    expect(llm.calls).toHaveLength(0);
+  });
+});
+
 describe("parse rate limit", () => {
   it("returns 429 after RATE_LIMIT_PARSE_PER_HOUR requests, checked before the upload is read", async () => {
-    const app = buildTestApp({ RATE_LIMIT_PARSE_PER_HOUR: "2" });
+    const app = buildTestApp({ RATE_LIMIT_PARSE_PER_HOUR: "2" }, { llm: fakeLlm() });
     const send = () => request(app).post(PARSE).attach("file", pdfFixturePath("resume-1page.pdf"));
 
     expect((await send()).status).toBe(200);
