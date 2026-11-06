@@ -16,15 +16,15 @@
 |---|---|
 | Last updated | 2026-11-06 |
 | Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 7 ✅ complete (local, uncommitted)**: smoke test green on local Ollama. Next session = **Day 8** |
-| Branch | `main`. Day 7 work is **uncommitted in the working tree**; `origin/main` is at Day 6 (`f98ac80`) |
+| Current day (per `07-daily-development-plan.md`) | **Day 7 ✅ complete (pushed)**. Next = **Day 8** (started in the same session) |
+| Branch | `main` → in sync with `origin/main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `f98ac80 docs: log Day 6 push` (pushed). Day 7 not committed yet |
-| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **209 tests**: shared 53, web 5, api 151). GitHub CI last green on Day 6 |
+| Last commit | `docs: log Day 7 push` (pushed). Day 7 code commit `53c4694` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint, format, typecheck, **209 tests**: shared 53, web 5, api 151). **GitHub CI ✅ green on Day 7** (run 42304423698) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`); switch with one line in `apps/api/.env` |
 
-**Next action:** Ask whether to commit/push Day 7. Then Day 8: AI resume parsing (`PARSE_PROMPT_V1` + `resumeParserService`), developed against local Ollama (and `FakeLlmClient` in tests).
+**Next action:** Day 8: AI resume parsing (`PARSE_PROMPT_V1` + `resumeParserService`), developed against local Ollama (and `FakeLlmClient` in tests).
 
 **Blockers:** none. **Before Day 24:** OD-10 (choose the hosted LLM provider and get a key).
 
@@ -114,6 +114,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-67 | LLM testing: unit tests with a stubbed SDK for every branch; **the real SDK against a local fake Messages API** (test-only `baseURL` option) for HTTP shape, real error classes, SDK retries (529 → 3 hits) and timeouts; `FakeLlmClient` validates queued data against the caller's schema and records calls; `npm run llm:smoke -w @tailorcv/api` for one real call (never in CI) | Covers what a stub can't (headers, retries, real timeouts) without ever calling the real API | `anthropicSdk.test.ts` |
 | 2026-11-06 | D-68 | **Local development uses Ollama, not the paid Claude API.** New `OllamaLlmClient` (local `llama3` 8B on Ollama 0.40.14) behind the same `LlmClient` interface. **One switch:** `LLM_PROVIDER` in `apps/api/.env` (`ollama` \| `anthropic`), read only by `createLlmClient()`. Defaults: `ollama` outside production, `anthropic` in production; **production refuses `ollama`**. Ollama settings: `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (llama3), `OLLAMA_TIMEOUT_MS` (5 min), `OLLAMA_NUM_CTX` (8192). PDFs → text via unpdf for Ollama. The Claude client stays built and tested (fake API) for later. **When we prepare to deploy, we decide on a hosted provider (Claude API credit or something better) → OD-10, Day 24** | User: the Claude API is pay-as-you-go and they don't want to pay during local development; ChatGPT Go doesn't include API access. Free hosted tiers (e.g. Gemini free) may train on submitted data, which conflicts with the privacy promise. Local Ollama is free, private and already installed; a first test gave schema-valid, mostly faithful output | ADR-012, OD-10 |
 | 2026-11-06 | D-69 | **Switching providers must need zero code changes**, enforced three ways: (1) **neutral types**: `LlmContent` = string or `{type:"text"}`/`{type:"pdf", data}` parts (it used to be the Claude SDK's block type, the one leak the audit found); each client translates (`toClaudeContent` → base64 `document` block before the text; `toPlainText` → unpdf text). `FakeLlmClient` records part types. (2) **ESLint boundary**: `no-restricted-imports` blocks `@anthropic-ai/sdk`(/*), `openai`, `ollama` and the concrete client modules outside `apps/api/src/llm/` and tests (proved with a violating probe file: 2 errors; the factory import is allowed). (3) **Contract suite** `tests/contract/llmClient.contract.test.ts`: 10 scenarios × every client via one local fake server, identical expected outcomes (proved: making the providers diverge → 3 failures naming the provider). Dev Guide now has "switching" and "adding a provider" checklists | User: "make sure our code is scalable so switching from Ollama to Claude doesn't need many code changes" | ADR-013 |
+| 2026-11-06 | D-70 | **Push approved for Day 7**: committed as `53c4694` and pushed; then start Days 8–10 in the same session | User: "yes push day 7 and start day 8, day 9 and day 10" | — |
 
 ---
 
@@ -426,8 +427,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Decisions:** D-62 → D-69. ADR-011, ADR-012, ADR-013. OD-4 replaced by OD-10.
 **Issues / blockers:** none. OD-10 before Day 24. Parking Lot: overall LLM deadline.
-**Exit check met?** ✅ The smoke script succeeds (on local Ollama, the agreed development provider), and unit tests pass with the fake client. A real Claude call is deferred to OD-10. **Not committed yet.**
-**Next session:** commit/push Day 7 (ask), then Day 8: AI resume parsing on local Ollama.
+**Exit check met?** ✅ The smoke script succeeds (on local Ollama, the agreed development provider), and unit tests pass with the fake client. A real Claude call is deferred to OD-10.
+
+**Push:** approved (D-70). Secret scan clean, no `.env`. Committed `53c4694 feat(api): add provider-neutral LLM layer with Claude and Ollama clients (Day 7)`, pushed, **GitHub CI green** (run 42304423698).
+**Next session:** Day 8: AI resume parsing on local Ollama (started right away).
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):
