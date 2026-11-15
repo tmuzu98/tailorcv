@@ -15,22 +15,24 @@
 | Field | Value |
 |---|---|
 | Last updated | 2026-11-14 |
-| Phase | Phase 1 (MVP). **Milestone 1.2 (upload & parse) complete**; Milestone 1.3 (tailoring) starts on Day 12 |
-| Current day (per `07-daily-development-plan.md`) | **Day 11 ✅** (the user's browser check and the demo passed, Session 14). **Next: Day 12**, guardrail service, test-first |
-| Branch | `main` |
+| Phase | Phase 1 (MVP), Milestone 1.3 (tailoring). Milestone 1.2 (upload & parse) complete |
+| Current day (per `07-daily-development-plan.md`) | **Day 12 ✅** (guardrail service, built test-first, Session 14 part 2; local, uncommitted). **Next: Day 13**, keyword service + tailor prompt draft |
+| Branch | `main`. Day 12 work is **uncommitted**; `origin/main` is at Day 11 (`4073eff`) |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `0f36cdb test(web): wait for the page after a route change` (pushed), on top of `6447fea feat: upload page, compact review page with user additions (Days 10-11)`. `origin/main` is up to date apart from the DEVLOG push note |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **331 tests**: shared 69, web 69, api 193). Builds ✅ (web 464 KB / 141 KB gzip). **GitHub CI green** on `0f36cdb` (run 43659439041) |
+| Last commit | `4073eff docs: log Days 10-11 push` (pushed), on top of `0f36cdb` (test fix) and `6447fea` (Days 10–11). Day 12 not committed yet (D-71) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **389 tests**: shared 69, web 69, api 251; guardrail branch coverage 98%). GitHub CI last green on `0f36cdb` (run 43659439041) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | Servers **running** when this was written (`npm run dev`, started in Session 14): **http://localhost:5173**, API on :4000, Ollama 0.40.16 `llama3`. If they are down: `npm run dev` from the repo root (Ollama must be running, `ollama serve`) |
 
-**Next action:** start Day 12 (guardrail service, test-first).
+**Next action:** the user confirms the extra guardrail rules (D-89), then commit Day 12 when told and start Day 13.
 
-**Next steps (as of the end of Day 11, in order)**
-1. **Day 12: guardrail service, test-first** (AI-4). Write the tests with handcrafted "bad tailored output" fixtures first, then `services/guardrailService.ts`, ≥ 90% branch coverage. Note from ADR-014: the "original" the guardrails compare against is the resume in the tailor request, which already includes the user's additions; add a test that a user-added skill survives.
-2. **Day 13:** keyword service + tailor prompt draft. **Day 14:** tailor service + prompt iteration on local Ollama.
-3. **Day 15:** tailor endpoint + job description page. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
-4. **Before Day 24:** resolve OD-10 (hosted LLM provider + key). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
+**Next steps (as of the end of Day 12, in order)**
+1. **User: confirm or change the guardrail rules that go beyond the plan (D-89).** The main one: the AI may not remove or reorder jobs, schools or certifications (they are put back). Also: a reworded line with a number the resume never states is replaced by the original line.
+2. **Commit and push Day 12** when the user says so (D-71); confirm GitHub CI is green (first CI run with coverage).
+3. **Day 13:** `services/keywordService.ts` (normalize, match JD keywords against the tailored resume → matched, missing, score 0–100) + unit tests with the fixture JDs, ≥ 90% branch coverage (add the file to `coverage.include`, D-90). Draft `llm/prompts/tailor.v1.ts` and `TailorLlmOutputSchema`. The prompt should tell the model the rules the guardrails enforce (keep every item id, no new numbers, never drop a job).
+4. **Day 14:** tailor service (LLM → `applyGuardrails` → keywords → `TailorResult`; log `stats`, never `warnings`) + prompt iteration on local Ollama.
+5. **Day 15:** tailor endpoint + job description page. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
+6. **Before Day 24:** resolve OD-10 (hosted LLM provider + key). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
 
 **Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
@@ -138,6 +140,9 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-09 | D-85 | **The review page is a compact summary, and the user can add to it** (replaces the full-resume layout of D-84 on this page, same day). `features/resume-review/ResumeSummary.tsx`: Contact grid; one line per job / school / project / certification; skills one line per category; bullet points, education details and the profile summary folded into `<details>`; counts in the section headings. **The user can add:** a missing headline / email / phone / location (only where the PDF had nothing), skills (duplicates refused, case-insensitive), bullet points on an **existing** job, certifications (name + optional issuer and date). Additions are marked "Added by you", can be removed, survive a refresh, and come with the note "only add things that are true". **Not in scope:** editing or deleting parsed content, adding new jobs / education / projects (Parking Lot). `ResumeView` stays for the tailored preview (Day 16) | User: the page "looks exactly same as a resume, how about we show a little compact version of it and let the user also add some things if they want to". Add-only keeps the page simple and keeps "what the PDF said" intact; user additions are the user's own statements, so they don't conflict with "tailor, never fabricate" (that rule binds the AI) | Tech Design §6.4, PRD FR-4 |
 | 2026-11-09 | D-86 | **How additions are stored and reach the backend:** `packages/shared/src/resumeAdditions.ts` holds `ResumeAdditionsSchema`, `RESUME_ADDITION_LIMITS` (skill ≤ 60 chars, bullet ≤ 500, other fields ≤ 200; ≤ 50 skills, 50 bullets, 20 certifications) and the pure `applyResumeAdditions()` (never overwrites parsed fields, "Additional skills" group, next free ids, skips unknown jobs and duplicate skills). The web session gains `additions` + `setAdditions` (a new resume clears them; changing them clears the tailoring result; old stored sessions load with none). **No new endpoint and no new request field:** the tailor request will carry the merged `Resume`. **Backend contract change:** `TailorRequestSchema` now rejects a resume with duplicate ids (`VALIDATION_ERROR`), because ids can be created on the client and the guardrails match by id; the check is on the request, not on `ResumeSchema` (which must stay plain for structured outputs). No `apps/api` code changed: the tailor route doesn't exist until Day 15 | Stateless design (ADR-007): the resume lives in the browser, so there is nothing to save on the server. One merge function, shared and tested, means the browser and the API can't disagree about the merged shape | ADR-014, API spec §3/§6 |
 | 2026-11-14 | D-87 | **Accept the slow local parse (37–45 s for the user's resume) and move on.** No model or prompt change now. If the wait gets in the way during the tailoring days: try a smaller local model, or trim what the parse prompt asks the model to emit | Measured in Session 14: it is generation speed, not a cold start (Known Issue #9). The progress copy covers waits this long (D-82), and the hosted production model will be faster | — |
+| 2026-11-14 | D-88 | **Guardrail service shape (Day 12 / AI-4):** one pure function, `applyGuardrails(original, tailored)` → `{ resume, warnings, stats }` in `apps/api/src/services/guardrailService.ts`. Items are matched by id and the result is **rebuilt from the original entries**; only the parts the model may edit (bullet text and order, headline, summary, descriptions, skill grouping) are taken from its answer. `warnings` are user-facing strings (they contain resume text, never logged); `stats` are six counters, safe to log. No AI, no I/O, inputs not modified, and its own output passes clean | Building from the original makes the guarantee structural: a locked field cannot leak through because it is never copied from the model. Matching by id is what the schema's stable ids were made for (ADR-006, ADR-014) | ADR-006 (Accepted), Tech Design §6.2 |
+| 2026-11-14 | D-89 | **Guardrail rules beyond the Day 12 list (Claude's choice, to be confirmed by the user):** (1) a job, school or certification the model **leaves out is put back**, and these sections keep the original order; projects and extra sections may be removed or reordered. (2) Also restored: name, email, phone, location, links, project name/link, extra-section title. (3) Project technologies follow the skill rule; extra-section items must be items of the same original section. (4) **New-number check:** a reworded headline, summary, bullet point, detail or project description containing a number found nowhere in the original is replaced by the original text. (5) A skill counts as known if it occurs in the original resume's text as whole words, any letter case ("Java" is not found in "JavaScript", "C" not in "C++"). (6) Case- or spacing-only changes to locked fields are restored without a warning. (7) Skill groups sharing an id are merged | (1) a missing job changes the work history, which is the user's call, not the model's. (4) the API spec already promised it ("200+ users" only if the resume says so). (5) Tech Design asked for skills found in the original text; whole-word matching avoids accepting "Java" from "JavaScript". (6) avoids noise warnings. Limits: number words ("three") and invented non-numeric claims are not caught; that is left to the prompt and the Day 22 evals | Tech Design §6.2, roadmap AI-4 |
+| 2026-11-14 | D-90 | **Coverage is measured and enforced.** `@vitest/coverage-v8` (root dev dependency). The API's `npm test` runs `vitest run --coverage`; only the files in `coverage.include` (`apps/api/vitest.config.ts`) are measured and the run fails under 90% branches/functions/lines/statements. Today: `guardrailService.ts` (98% branches). CI enforces it through `npm test` | The plan and the Dev Guide set a ≥ 90% target for the safety-critical code; a target nobody measures drifts. Limiting it to the listed files keeps the run fast and the number meaningful | Dev Guide §3/§6, Tech Design §10 |
 
 ---
 
@@ -644,6 +649,29 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none open. Lesson for new web tests: after a navigation, wait for the page (`findBy…`), not only for the router's pathname.
 **Exit check met?** Day 11 ✅ ("the demo works on all the test PDFs"). **Milestone 1.2 complete.**
 **Next session:** Day 12, first task: write the guardrail tests with the "bad tailored output" fixtures.
+
+### 2026-11-14: Session 14, part 2 (Day 12: guardrail service, test-first)
+**Day:** 12 (same session; started when the user said "lets cook day 12")
+**Done**
+- [AI-4] **Tests first:** `apps/api/src/services/guardrailService.test.ts`, 58 tests on the synthetic fixtures, each "tailored" resume a handcrafted bad model output. Ran them before the service existed → the file failed to load (red).
+- [AI-4] `apps/api/src/services/guardrailService.ts`: `applyGuardrails(original, tailored)` → `{ resume, warnings, stats }` (D-88). All 58 tests passed on the first run of the implementation.
+- Test groups: honest output untouched (identity, the hand-written honest fixture, removals, regrouped skills, skill found only in a bullet point, new headline, sparse resume); locked fields (every experience / education / certification field, invented and deleted values, case-only change, several fields in one warning, contact details, project name/link, section title); entries (new job / school / certification / project / section dropped, repeated id dropped, left-out entries put back, job order kept, project order free); bullet points (added, repeated id, moved from another job, details and project bullets, blanked); skills (new skill, part-of-a-word, empty group, shared group id, **user-added skill survives**, project technology, section item); numbers (bullet, reuse of existing numbers, 5,000 = 5000, summary, headline / detail / description); general (schema-valid + unique ids, inputs not modified, deterministic + settles after one pass, stats are counts only).
+- Coverage (D-90): installed `@vitest/coverage-v8` (root `package.json` checked after the install, Known Issue #4: saved correctly); `apps/api/vitest.config.ts` thresholds; API `test` script runs with `--coverage`.
+- Not wired into anything yet: no route or service calls `applyGuardrails` until Day 14.
+
+**Verified**
+- **Coverage of `guardrailService.ts`: 98.07% branches (51/52), 100% functions, 100% lines.** The one uncovered branch is the non-text fallback in `collectText`.
+- Deliberate break (D-33): 12 single-rule breaks, each run separately; every one failed at least one test (locked fields not restored 11, repeated entry ids 1, left-out entries 2, every skill accepted 7, no whole-word check 1, repeated bullet ids 1, new numbers accepted 6, 5,000 ≠ 5000 1, section items unchecked 1, contact details not restored 4, case-only change warns 1, technologies unchecked 3). File restored and compared with the saved copy.
+- `npm run check` ✅ (0 lint warnings, **389 tests**: api 193 → 251).
+
+**Discussed**
+- Nothing was discussed before the build; the rules that go beyond the plan's list were chosen by Claude and are recorded as D-89 for the user to confirm.
+
+**Decisions:** D-88, D-89, D-90. ADR-006 → Accepted.
+**Doc-sync audit (D-52):** plan (Day 12 ticked + the added rules, tracker ✅), Tech Design §6.2 step 3 (the real rules) and §10 (coverage), ADR-006 status, Dev Guide §3 (`npm test` runs coverage in the API) and §6 (how the target is enforced), roadmap AI-4, README status. API spec: checked, no change needed (the tailor response shape is unchanged, and the "200+ users" note in §3 is now true in code). No schema change.
+**Issues / blockers:** none. Known limits of the guardrails are in D-89 (number words and non-numeric invented claims are not caught).
+**Exit check met?** Day 12 ✅: all guardrail tests green, coverage target met. **Not committed** (D-71).
+**Next session:** see "Next steps" under Current Status.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

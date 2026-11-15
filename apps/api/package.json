@@ -12,7 +12,7 @@
     "fixtures:pdfs": "tsx tests/fixtures/pdfs/generate.ts",
     "llm:smoke": "tsx --env-file-if-exists=.env scripts/llm-smoke.ts",
     "parse:pdf": "tsx --env-file-if-exists=.env scripts/parse-pdf.ts",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {

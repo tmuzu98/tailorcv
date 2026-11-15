@@ -256,14 +256,15 @@
 **Goal:** the honesty guarantee exists before any tailoring prompt is written.
 **Tasks:** AI-4
 
-- [ ] Write the tests first, with handcrafted "bad tailored output" fixtures:
-  - [ ] changed company / title / date / degree → restored + warning
-  - [ ] new skill not found in the original text → removed + warning _("original" = the resume in the tailor request, which already includes the user's additions, ADR-014; add a test that a user-added skill survives)_
-  - [ ] new experience / education / cert entry → dropped + warning
-  - [ ] more bullets than the original → trimmed + warning
-  - [ ] valid rewording → passes untouched
-- [ ] Implement `services/guardrailService.ts` to make them pass
-- [ ] ≥ 90% branch coverage
+- [x] Write the tests first, with handcrafted "bad tailored output" fixtures (`services/guardrailService.test.ts`, 58 tests; they failed before the service existed):
+  - [x] changed company / title / date / degree → restored + warning
+  - [x] new skill not found in the original text → removed + warning _("original" = the resume in the tailor request, which already includes the user's additions, ADR-014; add a test that a user-added skill survives)_
+  - [x] new experience / education / cert entry → dropped + warning
+  - [x] more bullets than the original → trimmed + warning
+  - [x] valid rewording → passes untouched
+  - [x] *(Added, D-89)* a job / school / certification left out → put back; changed contact details, project name/link, section title → restored; new project technology or section item → removed; reworded text with a number the resume never states → original text kept
+- [x] Implement `services/guardrailService.ts` to make them pass (`applyGuardrails(original, tailored)` → `{ resume, warnings, stats }`, D-88)
+- [x] ≥ 90% branch coverage (**98%**: 51/52 branches; measured and enforced by `npm test`, D-90)
 
 **Deliverable:** guardrail service.
 **Exit check:** all guardrail tests are green and the coverage target is met.
@@ -488,7 +489,7 @@
 | 9 | Parse endpoint + FE plumbing | ✅ |
 | 10 | Upload page | ✅ |
 | 11 | Review page 🛟 → **M1.2** | ✅ |
-| 12 | Guardrail service | ⬜ |
+| 12 | Guardrail service | ✅ |
 | 13 | Keyword service + prompt draft | ⬜ |
 | 14 | Tailor service + prompt iteration | ⬜ |
 | 15 | Tailor endpoint + JD page | ⬜ |

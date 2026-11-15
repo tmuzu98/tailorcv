@@ -4,7 +4,7 @@ Upload a PDF resume, paste a job description, and get back an honest, ATS-friend
 
 **Stack:** React 19 + Vite + Tailwind (frontend) · Node.js 24 + Express 5 (backend) · TypeScript + zod (shared) · Claude API (AI)
 
-> 🚧 **Status:** Week 3 (Day 12 of 25). You can **upload a PDF resume in the browser**, the AI turns it into structured data (local Ollama in development), and the **review page shows a compact summary you can add missing details to** (skills, bullet points, certifications, contact fields). Done: Phase 0, Milestone 1.1, PDF upload/validation, provider-neutral LLM layer (Claude + Ollama), AI parsing, parse endpoint, upload page, review page (**Milestone 1.2: upload & parse**). Next: tailoring (Week 3), starting with the guardrail service. Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
+> 🚧 **Status:** Week 3 (Day 13 of 25). You can **upload a PDF resume in the browser**, the AI turns it into structured data (local Ollama in development), and the **review page shows a compact summary you can add missing details to** (skills, bullet points, certifications, contact fields). Done: Phase 0, Milestone 1.1, PDF upload/validation, provider-neutral LLM layer (Claude + Ollama), AI parsing, parse endpoint, upload page, review page (**Milestone 1.2: upload & parse**), honesty guardrail service. Next: keyword service and the tailoring prompt (Day 13). Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
 ## Quickstart
 

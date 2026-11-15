@@ -37,7 +37,7 @@ Format: **Context → Decision → Consequences** · Status: Proposed / Accepted
 **Consequences:** Better UX and lower cost for repeat tailoring. Prepares for saved base resumes in Phase 3. The client must send the resume JSON on each tailor call, which is fine at ≤ 200 KB.
 
 ## ADR-006: Honesty guardrails enforced in code, not just in prompts
-**Status:** Proposed
+**Status:** Accepted (2026-11-14, Day 12: `services/guardrailService.ts`, a pure function that rebuilds the tailored resume from the original entries and takes only editable text from the model; rules in Tech Design §6.2 step 3)
 **Context:** LLMs can embellish. A fabricated credential on a resume harms the user.
 **Decision:** The schema marks locked fields. A deterministic `guardrailService` restores locked fields, strips new skills or entries, and reports warnings. All changes are shown to the user.
 **Consequences:** Some valid rewordings may be flagged as false positives (shown as warnings, not silently dropped). This adds a small amount of server code, and the trust it builds justifies that.

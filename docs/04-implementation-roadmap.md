@@ -88,7 +88,7 @@ Estimates are in ideal dev-days (d).
 | ID | Task | WS | Est | Depends on |
 |---|---|---|---|---|
 | AI-3 | `TAILOR_PROMPT_V1` + `jobTailorService` (JD analysis + tailored resume + changes in one call) | AI | 1.5d | AI-1 |
-| AI-4 | `guardrailService`: locked-field restore, new-skill detection, no new entries, bullet count. Full unit tests | AI | 1d | SHR-1 |
+| AI-4 | `guardrailService`: locked-field restore, new-skill detection, no new or missing entries, bullet count, new-number check (D-89). Full unit tests | AI | 1d | SHR-1 |
 | BE-6 | `keywordService`: deterministic matched/missing/score + unit tests | BE | 0.5d | SHR-1 |
 | BE-7 | `POST /api/v1/resumes/tailor` route + controller + integration tests | BE | 0.5d | AI-3, AI-4, BE-6 |
 | FE-5 | Job description page: textarea, char counter, validation, submit mutation | FE | 0.5d | FE-3 |

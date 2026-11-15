@@ -237,11 +237,27 @@ TailorResult = {
      b. Produce tailored Resume + changes[] honoring the lock rules
    Structured output: TailorLlmOutputSchema through LlmClient.generateStructured (Claude: JSON
    schema from betaZodOutputFormat; Ollama: inlined JSON schema), validated by us (ADR-011)
-3. guardrailService (deterministic, no AI):
-     - Locked fields equal original?  → if not, restore original value + add warning
-     - Every tailored skill exists in original skills/bullets/projects text? → else remove + warn
-     - No new experience/education/cert entries?   → else drop + warn
-     - Bullet count per role ≤ original count
+3. guardrailService.applyGuardrails(original, tailored) → { resume, warnings, stats }
+   (deterministic, no AI, pure; implemented on Day 12, D-88/D-89). "original" = the resume in
+   the request, user additions included (ADR-014). Items are matched by id and the result is
+   built from the ORIGINAL entries, so only what the model may edit is taken from its answer:
+     - Locked fields (LOCKED_FIELDS + name, email, phone, location, links, project name/link,
+       section title) → always the original value; warning if the model changed one
+       (a change in letter case or spacing only is restored without a warning)
+     - New job / school / certification / project / section, or a second entry reusing an id
+       → dropped + warning
+     - Job / school / certification left out → put back + warning; these three sections keep
+       the original order. Projects and extra sections may be reordered or removed
+     - Bullet points and details: reword / reorder / remove allowed; an unknown or repeated id
+       → dropped + warning (so the count is never above the original)
+     - Skills and project technologies: must occur in the original resume's text as whole
+       words, any letter case ("Java" is not found in "JavaScript") → else removed + warning.
+       Groups may be regrouped; groups sharing an id are merged; empty groups are dropped
+     - Extra-section items: must be an item of the same original section → else removed + warning
+     - Headline, summary, bullet points, details, project description: a rewrite containing a
+       number that appears nowhere in the original → original text kept + warning
+   `warnings` are user-facing and contain resume text; `stats` are counts only (the only part
+   that may be logged).
 4. keywordService: compute matched/missing + matchScore deterministically
    (normalized, case-insensitive token/phrase matching of JD keywords vs tailored text)
 5. Return TailorResult
@@ -336,7 +352,7 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 | Level | Tool | What |
 |---|---|---|
-| Unit | Vitest | Schemas, guardrail rules, keyword scoring, id assignment, error mapping, resume normalizer, LLM clients (stubbed SDK) |
+| Unit | Vitest | Schemas, guardrail rules (≥ 90% branch coverage enforced by `npm test`, D-90), keyword scoring, id assignment, error mapping, resume normalizer, LLM clients (stubbed SDK) |
 | Integration (API) | Vitest + Supertest | Routes with `FakeLlmClient` (deterministic answers/errors via `buildTestApp(env, { llm })`); every error code per route |
 | LLM clients (real transport) | Vitest + local fake HTTP APIs | The real Anthropic SDK and the Ollama client against local fakes of their APIs (headers, retries, timeouts, aborts) |
 | LLM contract | Vitest (`tests/contract/llmClient.contract.test.ts`) | The same scenarios against every provider client, identical outcomes required (ADR-013) |
