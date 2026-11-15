@@ -19,8 +19,8 @@
 | Current day (per `07-daily-development-plan.md`) | **Day 11 ✅** (the user's browser check and the demo passed, Session 14). **Next: Day 12**, guardrail service, test-first |
 | Branch | `main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | Days 10–11 committed and pushed in Session 14 (see the Session 14 entry for the hash and the CI run) |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **331 tests**: shared 69, web 69, api 193). Builds ✅ (web 464 KB / 141 KB gzip) |
+| Last commit | `0f36cdb test(web): wait for the page after a route change` (pushed), on top of `6447fea feat: upload page, compact review page with user additions (Days 10-11)`. `origin/main` is up to date apart from the DEVLOG push note |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **331 tests**: shared 69, web 69, api 193). Builds ✅ (web 464 KB / 141 KB gzip). **GitHub CI green** on `0f36cdb` (run 43659439041) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | Servers **running** when this was written (`npm run dev`, started in Session 14): **http://localhost:5173**, API on :4000, Ollama 0.40.16 `llama3`. If they are down: `npm run dev` from the repo root (Ollama must be running, `ollama serve`) |
 
@@ -631,7 +631,9 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
   - Rejections: `not-a-pdf` 415 `UNSUPPORTED_FILE_TYPE`, `seven-pages` 422 `PDF_TOO_MANY_PAGES`, `empty` 400 `FILE_MISSING`, `encrypted` 422 `PDF_ENCRYPTED`, `corrupt` 415 `UNSUPPORTED_FILE_TYPE` ("appears to be damaged"), `invoice` 422 `RESUME_NOT_DETECTED` (2.5 s).
   - The uploads used up the parse rate limit (10 per hour, in memory): the 10th and 11th requests got 429 `RATE_LIMITED`, as designed. Reset by a watch-restart of the API (`touch` on a source file, no content change), then the last two files were uploaded.
 - No bugs found by the demo, so nothing to fix under "fix bugs and catch up".
-- Committed and pushed Days 10–11 at the user's request (D-71).
+- Committed and pushed Days 10–11 at the user's request (D-71): `6447fea`.
+- **CI failed on `6447fea`** (run 43659259409, Test step, 1 of 331): `UploadPage.test.tsx` "on success stores the resume and lands on /review" could not find the "Review your resume" heading; the page in the failure output was still the upload page. Cause: the test waited for `router.state.location.pathname`, then asserted on the page with a synchronous `getByRole`; the router's location changes before React renders the new page. It passed locally every time and lost the race on the slower CI runner.
+- Fix `0f36cdb`: `await screen.findByRole(...)` in that test and in the one other test with the same pattern (`ReviewPage.test.tsx`, "Upload a different file"). No app code changed. `npm run check` ✅ → pushed → **CI green** (run 43659439041).
 
 **Discussed**
 - Add-only on the review page (D-85): the user tried it and raised no objection; editing/deleting stays in the Parking Lot. (Claude's reading of "everything looks good"; not stated by the user in so many words.)
@@ -639,7 +641,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Decisions:** D-87.
 **Doc-sync audit (D-52):** no code changed in this session. Plan (Day 11 ticked, tracker ✅), README status, DEVLOG (Current Status, Known Issue #9). Other docs unaffected.
-**Issues / blockers:** none.
+**Issues / blockers:** none open. Lesson for new web tests: after a navigation, wait for the page (`findBy…`), not only for the router's pathname.
 **Exit check met?** Day 11 ✅ ("the demo works on all the test PDFs"). **Milestone 1.2 complete.**
 **Next session:** Day 12, first task: write the guardrail tests with the "bad tailored output" fixtures.
 
