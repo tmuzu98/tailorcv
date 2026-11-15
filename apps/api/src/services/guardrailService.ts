@@ -10,6 +10,8 @@ import type {
   SkillGroup,
   TextItem,
 } from "@tailorcv/shared";
+import { analyzeKeywords, normalizeForMatching } from "./keywordService";
+import { collectResumeText } from "./resumeText";
 
 /**
  * Honesty guardrails (ADR-006, Tech Design §6.2 step 3): the deterministic check between the
@@ -30,6 +32,7 @@ import type {
  *  - a bullet point that is not in the original (so never more than before)   → dropped
  *  - a skill, technology or section item that the original does not mention   → removed
  *  - reworded text with a number the original never states                    → original text kept
+ *  - reworded text with a job keyword naming something the original never mentions → original kept
  *
  * Pure and deterministic: inputs are not modified, and running it on its own output changes
  * nothing. Warnings contain resume text (they are shown to the user); `stats` are counts only
@@ -111,13 +114,6 @@ const canonical = (value: unknown) =>
 const numbersIn = (text: string) =>
   (text.match(/\d+(?:[.,]\d+)*/g) ?? []).map((token) => token.replaceAll(",", ""));
 
-/** Every piece of text in a resume (ids excluded). */
-function collectText(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (typeof value !== "object" || value === null) return [];
-  return Object.entries(value).flatMap(([key, child]) => (key === "id" ? [] : collectText(child)));
-}
-
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 /** "+" and "#" continue a name too: "C" is not found in "C++" or "C#". */
 const NAME_CONTINUES = /[\p{L}\p{N}+#]/u;
@@ -130,6 +126,33 @@ function containsPhrase(text: string, phrase: string): boolean {
     if (!LETTER_OR_DIGIT.test(before) && !NAME_CONTINUES.test(after)) return true;
   }
   return false;
+}
+
+/** Words that carry no claim; a keyword is never "new" because of them. */
+const FILLER_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "the",
+  "of",
+  "or",
+  "for",
+  "in",
+  "on",
+  "to",
+  "with",
+]);
+
+/**
+ * True if two normalized words are forms of the same word: equal, or sharing a long common
+ * start ("intern" / "internship", "analysi" / "analyz"). Short words must be equal, so "java"
+ * is not "javascript".
+ */
+function sameWordFamily(a: string, b: string): boolean {
+  if (a === b) return true;
+  let shared = 0;
+  while (shared < a.length && a[shared] === b[shared]) shared += 1;
+  return shared >= 5 && shared >= 0.6 * Math.max(a.length, b.length);
 }
 
 /** What one guardrail run knows about the original, plus the findings collected so far. */
@@ -145,10 +168,21 @@ class Run {
   };
   private readonly text: string;
   private readonly numbers: Set<string>;
+  /**
+   * Job keywords a rewrite may not use: the resume does not cover them AND they contain a word
+   * the resume never uses in any form ("GraphQL"). [as written, form used for matching].
+   */
+  private readonly foreignKeywords: [label: string, normalized: string][];
 
-  constructor(original: Resume) {
-    this.text = tidy(collectText(original).join("\n"));
+  constructor(original: Resume, jobKeywords: readonly string[]) {
+    this.text = tidy(collectResumeText(original).join("\n"));
     this.numbers = new Set(numbersIn(this.text));
+    const resumeWords = [...new Set(normalizeForMatching(this.text).split(" "))];
+    const used = (word: string) =>
+      FILLER_WORDS.has(word) || resumeWords.some((known) => sameWordFamily(word, known));
+    this.foreignKeywords = analyzeKeywords(jobKeywords, original)
+      .missing.map((keyword): [string, string] => [keyword, normalizeForMatching(keyword)])
+      .filter(([, normalized]) => !normalized.split(" ").every(used));
   }
 
   /** The original resume mentions this skill somewhere (a skill list, a bullet point…). */
@@ -159,6 +193,14 @@ class Run {
   /** Numbers in `text` that appear nowhere in the original resume. */
   newNumbers(text: string): string[] {
     return numbersIn(text).filter((number) => !this.numbers.has(number));
+  }
+
+  /** Job keywords in `text` that bring in something the resume never mentions ("GraphQL"). */
+  newKeywords(text: string): string[] {
+    const normalized = ` ${normalizeForMatching(text)} `;
+    return this.foreignKeywords
+      .filter(([, keyword]) => normalized.includes(` ${keyword} `))
+      .map(([label]) => label);
   }
 }
 
@@ -243,9 +285,12 @@ function keepEveryEntry<T extends { id: string }>(
 }
 
 /**
- * Free text the model may rewrite. A rewrite that brings in a number the resume never states
- * ("serving 2 million requests") is replaced by the original text. An empty rewrite also keeps
- * the original.
+ * Free text the model may rewrite. A rewrite is replaced by the original text when it brings in
+ * a number the resume never states ("serving 2 million requests"), or a keyword of the job that
+ * that names something the resume never mentions ("worked with GraphQL APIs"): that is how a
+ * model flatters the keyword score. A keyword made only of words the resume already uses, in
+ * any form, is fine ("frontend performance" when the resume has both words): that is honest
+ * rewording, and it is how the score is meant to rise. An empty rewrite also keeps the original.
  */
 function safeText(
   run: Run,
@@ -254,11 +299,14 @@ function safeText(
   what: string,
 ): string | undefined {
   if (tailored === undefined || tailored.trim() === "") return original;
-  const invented = run.newNumbers(tailored);
-  if (invented.length === 0) return tailored;
+  const numbers = run.newNumbers(tailored);
+  const keywords = run.newKeywords(tailored);
+  if (numbers.length === 0 && keywords.length === 0) return tailored;
   run.stats.textsRestored += 1;
   run.warnings.push(
-    `${what} mentioned a number that is not in your resume (${listOf.format(invented)}). The original wording was kept.`,
+    numbers.length > 0
+      ? `${what} mentioned a number that is not in your resume (${listOf.format(numbers)}). The original wording was kept.`
+      : `${what} mentioned something the job asks for that is not in your resume (${listOf.format(keywords)}). The original wording was kept.`,
   );
   return original;
 }
@@ -405,10 +453,15 @@ const SECTION_RULES: (run: Run) => SectionRules<AdditionalSection> = (run) => ({
 
 /**
  * Checks a tailored resume against the original and returns a version with every violation
- * undone, the user-facing warnings, and content-free counts.
+ * undone, the user-facing warnings, and content-free counts. Pass the job's keywords so that
+ * reworded text cannot claim one the resume does not cover.
  */
-export function applyGuardrails(original: Resume, tailored: Resume): GuardrailResult {
-  const run = new Run(original);
+export function applyGuardrails(
+  original: Resume,
+  tailored: Resume,
+  options: { jobKeywords?: readonly string[] } = {},
+): GuardrailResult {
+  const run = new Run(original, options.jobKeywords ?? []);
   const resume: Resume = {
     basics: keepBasics(run, original.basics, tailored.basics),
     experience: keepEveryEntry(

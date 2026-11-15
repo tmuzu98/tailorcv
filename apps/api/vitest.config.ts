@@ -10,7 +10,13 @@ export default defineConfig({
     // and the run fails below the target (guardrails: Day 12 exit check, >= 90% branches).
     coverage: {
       provider: "v8",
-      include: ["src/services/guardrailService.ts"],
+      include: [
+        "src/services/guardrailService.ts",
+        "src/services/keywordService.ts",
+        "src/services/resumeText.ts",
+        "src/services/tailorEdits.ts",
+        "src/services/jobTailorService.ts",
+      ],
       reporter: ["text"],
       thresholds: { branches: 90, functions: 90, lines: 90, statements: 90 },
     },

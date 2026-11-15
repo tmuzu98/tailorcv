@@ -632,6 +632,99 @@ describe("applyGuardrails: numbers in reworded text", () => {
   });
 });
 
+describe("applyGuardrails: job keywords in reworded text", () => {
+  const jobKeywords = ["React", "GraphQL", "Storybook", "design systems", "Cypress"];
+  const rewordBullet = (text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_2").bullets, "exp_2_b2").text = text;
+    });
+
+  it("keeps the original bullet point when the rewording claims a keyword the resume lacks", () => {
+    const tailored = rewordBullet("Wrote GraphQL and REST API endpoints in Node.js and Express.");
+    const result = applyGuardrails(original, tailored, { jobKeywords });
+
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain("GraphQL");
+    expect(result.warnings[0]).toContain("Software Engineer at Lumen Retail Co.");
+    expect(result.stats.textsRestored).toBe(1);
+  });
+
+  it("recognizes the keyword in another spelling (plural, letter case)", () => {
+    const tailored = rewordBullet("Wrote REST API endpoints for the DESIGN SYSTEM team.");
+    const result = applyGuardrails(original, tailored, { jobKeywords });
+
+    expect(result.resume).toEqual(original);
+    expect(result.warnings[0]).toContain("design systems");
+  });
+
+  it("allows a keyword the resume already covers, anywhere in the resume", () => {
+    // React and Cypress are in the resume, though not in this bullet point.
+    const text =
+      "Wrote REST API endpoints in Node.js for the React storefront, tested with Cypress.";
+    const result = applyGuardrails(original, rewordBullet(text), { jobKeywords });
+
+    expect(byId(byId(result.resume.experience, "exp_2").bullets, "exp_2_b2").text).toBe(text);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("allows a job keyword made of words the resume already uses, in any form", () => {
+    // The resume has "Frontend Engineer", "Lighthouse performance score" and "accessible",
+    // but not the phrases "frontend performance" or "accessibility".
+    const keywords = ["frontend performance", "accessibility", "GraphQL"];
+    const text = "Wrote REST API endpoints, improving frontend performance and accessibility.";
+    const result = applyGuardrails(original, rewordBullet(text), { jobKeywords: keywords });
+
+    expect(byId(byId(result.resume.experience, "exp_2").bullets, "exp_2_b2").text).toBe(text);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("still blocks a keyword when one of its words is new to the resume", () => {
+    // "frontend" is in the resume; "architecture" is not.
+    const result = applyGuardrails(
+      original,
+      rewordBullet("Wrote REST API endpoints and owned the frontend architecture."),
+      { jobKeywords: ["frontend architecture"] },
+    );
+    expect(result.resume).toEqual(original);
+    expect(result.warnings[0]).toContain("frontend architecture");
+  });
+
+  it("does not treat a short word as a form of a longer one (Java / JavaScript)", () => {
+    const result = applyGuardrails(original, rewordBullet("Wrote Java REST API endpoints."), {
+      jobKeywords: ["Java"],
+    });
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it("checks the summary and headline too", () => {
+    const tailored = tailoredWith((r) => {
+      r.basics.headline = "Frontend Engineer (React, Storybook)";
+      r.basics.summary = "Frontend engineer experienced with GraphQL.";
+    });
+    const result = applyGuardrails(original, tailored, { jobKeywords });
+
+    expect(result.resume.basics).toEqual(original.basics);
+    expect(result.warnings).toHaveLength(2);
+  });
+
+  it("reports a new number first when a rewording has both problems", () => {
+    const tailored = rewordBullet("Wrote 40 GraphQL endpoints in Node.js and Express.");
+    const result = applyGuardrails(original, tailored, { jobKeywords });
+
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatch(/number/);
+  });
+
+  it("does nothing without job keywords (the check needs the job)", () => {
+    const tailored = rewordBullet("Wrote GraphQL and REST API endpoints in Node.js and Express.");
+    expect(applyGuardrails(original, tailored).warnings).toEqual([]);
+    expect(applyGuardrails(original, tailored, { jobKeywords: [] }).warnings).toEqual([]);
+  });
+});
+
 describe("applyGuardrails: general guarantees", () => {
   /** One model output that breaks every rule at once. */
   const everythingWrong = tailoredWith((r) => {

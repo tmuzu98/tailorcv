@@ -275,10 +275,11 @@
 **Goal:** deterministic keyword scoring, and a first version of the tailoring prompt.
 **Tasks:** BE-6 · AI-3 (part 1)
 
-- [ ] `services/keywordService.ts`: normalize (case, punctuation, simple plurals, aliases like "JS"/"JavaScript"), match JD keywords against the tailored resume text → matched, missing, score 0–100
-- [ ] Unit tests with the fixture JDs
-- [ ] Draft `llm/prompts/tailor.v1.ts`: role, lock rules, the "never fabricate" rule, delimited `<resume>` / `<job_description>` inputs, output = jobSummary + keywords + tailoredResume + changes
-- [ ] Define `TailorLlmOutputSchema` (what the LLM returns, before the server adds the score and warnings)
+- [x] `services/keywordService.ts`: normalize (case, punctuation, simple plurals, aliases like "JS"/"JavaScript"), match JD keywords against the tailored resume text → matched, missing, score 0–100 (`analyzeKeywords(keywords, resume)`, D-91)
+- [x] Unit tests with the fixture JDs (`keywordService.test.ts` 46, `resumeText.test.ts` 3; 100% branch coverage, enforced)
+- [x] Draft `llm/prompts/tailor.v1.ts`: role, lock rules, the "never fabricate" rule, delimited `<resume>` / `<job_description>` inputs, output = jobSummary + keywords + tailoredResume + changes (`tailor.v1.test.ts` 21)
+- [x] Define `TailorLlmOutputSchema` (what the LLM returns, before the server adds the score and warnings)
+- [x] **Review the prompt together** (2026-11-14: the user approved it and asked for each job's bullet points to be built around the job description, D-93; first trial on local `llama3` the same day, see DEVLOG Session 14 part 4)
 
 **Deliverable:** keyword service + prompt draft.
 **Exit check:** keyword tests are green, and the prompt has been reviewed together.
@@ -289,11 +290,11 @@
 **Goal:** tailoring output that is high quality and honest.
 **Tasks:** AI-3 (part 2)
 
-- [ ] `services/jobTailorService.ts`: LLM call → guardrails → keyword analysis → `TailorResult`
-- [ ] Run the selected real provider (local Ollama, D-68; plus the production provider once OD-10 is resolved) on 2 resumes × 3 JDs. Review the results together
-- [ ] Iterate on the prompt (wording, emphasis, summary rewrite, ordering). Record each iteration in DEVLOG
-- [ ] Tune effort (`medium` vs `low`): compare quality and latency, record the numbers
-- [ ] Unit tests with the fake LLM
+- [x] `services/jobTailorService.ts`: LLM call → apply edits → guardrails → change list → keyword analysis → `TailorResponse` _(built on 2026-11-14 with `services/tailorEdits.ts` and `tailor-v2`, ADR-015)_
+- [x] Run the selected real provider (local Ollama, D-68; plus the production provider once OD-10 is resolved) on 2 resumes × 3 JDs. Review the results together _(2026-11-15: all 6 pairs on both local `llama3` and Claude `claude-opus-5-5`; comparison in DEVLOG Known Issue #10)_
+- [x] Iterate on the prompt (wording, emphasis, summary rewrite, ordering). Record each iteration in DEVLOG _(3 iterations on `llama3`, Session 14 part 5; 1 iteration on Claude, D-97, checked with one run, Session 15)_
+- [ ] Tune effort (`medium` vs `low`): compare quality and latency, record the numbers _(deferred, D-98; in the Parking Lot)_
+- [x] Unit tests with the fake LLM (`jobTailorService.test.ts` 9, `tailorEdits.test.ts` 14, `tailor.v2.test.ts` 20, guardrail keyword rule +6)
 
 **Deliverable:** working tailor service.
 **Exit check:** 6 real runs with 0 fabricated facts, and latency recorded.
@@ -490,8 +491,8 @@
 | 10 | Upload page | ✅ |
 | 11 | Review page 🛟 → **M1.2** | ✅ |
 | 12 | Guardrail service | ✅ |
-| 13 | Keyword service + prompt draft | ⬜ |
-| 14 | Tailor service + prompt iteration | ⬜ |
+| 13 | Keyword service + prompt draft | ✅ |
+| 14 | Tailor service + prompt iteration | ✅ (closed by D-98; effort tuning deferred) |
 | 15 | Tailor endpoint + JD page | ⬜ |
 | 16 | Result page | ⬜ |
 | 17 | Demo + buffer 🛟 → **M1.3** | ⬜ |

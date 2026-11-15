@@ -14,27 +14,25 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-14 |
+| Last updated | 2026-11-15 |
 | Phase | Phase 1 (MVP), Milestone 1.3 (tailoring). Milestone 1.2 (upload & parse) complete |
-| Current day (per `07-daily-development-plan.md`) | **Day 12 ✅** (guardrail service, built test-first, Session 14 part 2; local, uncommitted). **Next: Day 13**, keyword service + tailor prompt draft |
-| Branch | `main`. Day 12 work is **uncommitted**; `origin/main` is at Day 11 (`4073eff`) |
+| Current day (per `07-daily-development-plan.md`) | **Day 15 ⬜ (next)**: tailor endpoint + job description page. Day 14 ✅ closed by the user's decision (D-98): tailoring runs on Claude with the revised `tailor-v2` prompt (D-97); effort tuning deferred |
+| Branch | `main`. Days 13–14 committed and pushed in Session 15 |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `4073eff docs: log Days 10-11 push` (pushed), on top of `0f36cdb` (test fix) and `6447fea` (Days 10–11). Day 12 not committed yet (D-71) |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **389 tests**: shared 69, web 69, api 251; guardrail branch coverage 98%). GitHub CI last green on `0f36cdb` (run 43659439041) |
+| Last commit | Days 13–14 feature commit (Session 15); hash and CI result are in the Session 15 log entry |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **503 tests**: shared 69, web 69, api 365) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | Servers **running** when this was written (`npm run dev`, started in Session 14): **http://localhost:5173**, API on :4000, Ollama 0.40.16 `llama3`. If they are down: `npm run dev` from the repo root (Ollama must be running, `ollama serve`) |
+| Local dev | `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. **`apps/api/.env` is now on `LLM_PROVIDER=anthropic`** (the user added a Claude API key on 2026-11-15), so every parse or tailor in the browser is billed. For the free local model: `LLM_PROVIDER=ollama` (Ollama 0.40.16 `llama3`, `ollama serve`) |
 
-**Next action:** the user confirms the extra guardrail rules (D-89), then commit Day 12 when told and start Day 13.
+**Next action:** Day 15: tailor endpoint + job description page.
 
-**Next steps (as of the end of Day 12, in order)**
-1. **User: confirm or change the guardrail rules that go beyond the plan (D-89).** The main one: the AI may not remove or reorder jobs, schools or certifications (they are put back). Also: a reworded line with a number the resume never states is replaced by the original line.
-2. **Commit and push Day 12** when the user says so (D-71); confirm GitHub CI is green (first CI run with coverage).
-3. **Day 13:** `services/keywordService.ts` (normalize, match JD keywords against the tailored resume → matched, missing, score 0–100) + unit tests with the fixture JDs, ≥ 90% branch coverage (add the file to `coverage.include`, D-90). Draft `llm/prompts/tailor.v1.ts` and `TailorLlmOutputSchema`. The prompt should tell the model the rules the guardrails enforce (keep every item id, no new numbers, never drop a job).
-4. **Day 14:** tailor service (LLM → `applyGuardrails` → keywords → `TailorResult`; log `stats`, never `warnings`) + prompt iteration on local Ollama.
-5. **Day 15:** tailor endpoint + job description page. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
-6. **Before Day 24:** resolve OD-10 (hosted LLM provider + key). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
+**Next steps (as of Day 15, in order)**
+1. **Day 15:** tailor endpoint (`POST /api/v1/resumes/tailor` → `jobTailorService.tailor`, inject it like the parser service) + job description page + progress UI. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
+2. **User, still open:** confirm ADR-015 (the model returns edits), and say whether Claude is the production provider (OD-10: the key exists and works, the decision is not recorded).
+3. **Carried over from Day 14 (D-98):** the revised prompt was checked with one Claude run only. Watch in Day 16–17 use and the Day 22 evals: (a) it now rewords few or no bullets when they already fit the job (the one run changed none); (b) the "no first person" summary rule was added after that run and has not been sent to a model; (c) effort `medium` vs `low` has not been compared.
+4. **Before Day 24:** resolve OD-10 formally (provider, spend limit). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
 
-**Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
+**Blockers:** none.
 
 ---
 
@@ -45,7 +43,7 @@
 | OD-10 | **Which hosted LLM provider for production, and getting its key/credit?** Local development uses Ollama for free (D-68), but Render can't run a local model. Options: Claude API credit (planned, ADR-008), or another hosted provider. Also decide whether to set a spend limit and which model/effort fits the budget. Re-check the prompts on the chosen provider before launch | Claude API (Opus 5.5; ~\$0.05–0.25 per parse/tailor, roughly \$5–20 for the rest of development if used) | **Day 24** (earlier if we want real Claude output for prompt tuning) |
 | OD-6 | Optional anonymous analytics in MVP? | No | Day 20 |
 
-_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17. Resolved on Day 3: OD-8 → D-34, OD-9 → D-35. Day 7: OD-4 (API key by Day 7) → replaced by OD-10 after D-68._
+_Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7 → D-17. Resolved on Day 3: OD-8 → D-34, OD-9 → D-35. Day 7: OD-4 (API key by Day 7) → replaced by OD-10 after D-68. Day 13: OD-11 (what the model returns when tailoring) → D-94._
 
 ---
 
@@ -143,6 +141,14 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-14 | D-88 | **Guardrail service shape (Day 12 / AI-4):** one pure function, `applyGuardrails(original, tailored)` → `{ resume, warnings, stats }` in `apps/api/src/services/guardrailService.ts`. Items are matched by id and the result is **rebuilt from the original entries**; only the parts the model may edit (bullet text and order, headline, summary, descriptions, skill grouping) are taken from its answer. `warnings` are user-facing strings (they contain resume text, never logged); `stats` are six counters, safe to log. No AI, no I/O, inputs not modified, and its own output passes clean | Building from the original makes the guarantee structural: a locked field cannot leak through because it is never copied from the model. Matching by id is what the schema's stable ids were made for (ADR-006, ADR-014) | ADR-006 (Accepted), Tech Design §6.2 |
 | 2026-11-14 | D-89 | **Guardrail rules beyond the Day 12 list (Claude's choice, to be confirmed by the user):** (1) a job, school or certification the model **leaves out is put back**, and these sections keep the original order; projects and extra sections may be removed or reordered. (2) Also restored: name, email, phone, location, links, project name/link, extra-section title. (3) Project technologies follow the skill rule; extra-section items must be items of the same original section. (4) **New-number check:** a reworded headline, summary, bullet point, detail or project description containing a number found nowhere in the original is replaced by the original text. (5) A skill counts as known if it occurs in the original resume's text as whole words, any letter case ("Java" is not found in "JavaScript", "C" not in "C++"). (6) Case- or spacing-only changes to locked fields are restored without a warning. (7) Skill groups sharing an id are merged | (1) a missing job changes the work history, which is the user's call, not the model's. (4) the API spec already promised it ("200+ users" only if the resume says so). (5) Tech Design asked for skills found in the original text; whole-word matching avoids accepting "Java" from "JavaScript". (6) avoids noise warnings. Limits: number words ("three") and invented non-numeric claims are not caught; that is left to the prompt and the Day 22 evals | Tech Design §6.2, roadmap AI-4 |
 | 2026-11-14 | D-90 | **Coverage is measured and enforced.** `@vitest/coverage-v8` (root dev dependency). The API's `npm test` runs `vitest run --coverage`; only the files in `coverage.include` (`apps/api/vitest.config.ts`) are measured and the run fails under 90% branches/functions/lines/statements. Today: `guardrailService.ts` (98% branches). CI enforces it through `npm test` | The plan and the Dev Guide set a ≥ 90% target for the safety-critical code; a target nobody measures drifts. Limiting it to the listed files keeps the run fast and the number meaningful | Dev Guide §3/§6, Tech Design §10 |
+| 2026-11-14 | D-91 | **Keyword service (Day 13 / BE-6):** `analyzeKeywords(keywords, resume)` → `KeywordAnalysis` in `apps/api/src/services/keywordService.ts`. The keyword list comes from the model's job analysis; matching and the score are deterministic. Normalization: lowercase, NFKC, punctuation → spaces (keeping `+`, `#`, inner dots), crude plural → singular on plain words longer than 3 letters, a fixed alias table (25 groups). A keyword matches when its words are adjacent and in order inside one resume field. Output keeps the given spelling and order; blanks and repeats (other spellings included) are dropped; score = round(100 × matched / total), 0 for no keywords. `services/resumeText.ts` (`collectResumeText`) is shared with the guardrails | The score must not be something the model can flatter (Tech Design §5.2). Whole-word, single-field matching avoids false hits ("Java"/"JavaScript", a phrase spanning two fields). Known limits: no "-ing"/"-ed" forms ("testing" ≠ "test"), the alias table is small, and keywords the model invents are not checked against the JD text (Parking Lot) | Tech Design §6.2 step 4 |
+| 2026-11-14 | D-92 | **Tailor prompt draft `tailor-v1` and `TailorLlmOutputSchema`** live together in `apps/api/src/llm/prompts/tailor.v1.ts` (same pattern as parse-v1). Output = `{ jobSummary, keywords, tailoredResume, changes }`, job analysis first (models write fields in schema order), built from the shared schemas. The system prompt is stable (cacheable) and states every rule the guardrails enforce; the tone and the data go in the user turn as `<resume>{compact JSON}</resume>` and `<job_description>`. Copies of the delimiter tags inside user text are removed. Not run on a model yet | One call for analysis + tailoring (Tech Design §6.2). Telling the model the enforced rules avoids answers the guardrails then undo. Compact JSON saves tokens for the 8k local context. Tests tie the prompt text to `LOCKED_FIELDS`, the change enums and the tones so it cannot drift from the schema | Tech Design §6.2 step 2 |
+| 2026-11-14 | D-93 | **User decisions on tailoring behaviour (prompt review):** (1) the AI **may not remove a whole job** from the resume (confirms D-89 rule 1); (2) instead, each job's **bullet points are built around the pasted job description**: every job, older ones included, has its bullets reworded toward what the JD asks for; (3) the AI may write a short summary when the resume has none, and may remove bullet points it considers irrelevant. Claude's reading of (2), stated to the user: rewording only, from the facts of the original bullet (same work, tools, results); no new bullet points and no new facts, which the hard rule "tailor, never fabricate" and the guardrails forbid. The bullet rule in `TAILOR_SYSTEM_PROMPT` was rewritten to say this | User answers to the two review questions | `tailor.v1.ts` |
+| 2026-11-14 | D-94 | **The model returns edits, not the resume (resolves OD-11, option A).** `tailor-v2` in `apps/api/src/llm/prompts/tailor.v2.ts` replaces the `tailor-v1` draft (never committed): output = job analysis, keywords, headline, summary, reworded bullets by id with a reason, ids of bullets to remove; lenient schema. The model reads the resume as plain text with bullet ids (no JSON, no contact details). `services/tailorEdits.ts`: `applyTailorEdits` builds the tailored resume from the original (omissions = no edit; unknown ids ignored; a job never loses all its bullets; skills the job names move to the front of their group) and `describeChanges` builds the change list from the real differences after the guardrails. `services/jobTailorService.ts` runs: LLM → apply edits → guardrails → changes → keywords → `TailorResponse`, and logs counts only. API contract unchanged | The user asked why tailoring did not simply apply the job description to the parsed resume; the full-resume design failed on the local model (Known Issue #10). Claude had recommended this option and built it on that instruction; **the user has not yet said "yes" to the design in so many words** | ADR-015, Tech Design §6.2 |
+| 2026-11-14 | D-95 | **New guardrail: reworded text may not mention a job keyword the resume does not cover.** `applyGuardrails(original, tailored, { jobKeywords })`: keywords missing from the original (by `analyzeKeywords`) are looked for in each rewritten headline, summary, bullet, detail and description; a hit keeps the original text and adds a warning. Without `jobKeywords` the rule is off | Seen in the first `tailor-v2` run: the model wrote "GraphQL APIs" and "A/B testing" into bullets, and the keyword score rose from 50 to 63 on a fabricated match. Known cost: honest rewrites using a generic job term the resume words differently are rejected too ("data analysis" vs "analyzed … data") | Tech Design §6.2 step 3, ADR-015 |
+| 2026-11-14 | D-96 | **Keyword rule and keyword matching corrected after a model-quality replay.** (1) `keywordService`: words are reduced to a rough stem (plurals, "-ed", "-ing", final "e"), so "mentor" matches "Mentored" and "testing" matches "tested". (2) Guardrail keyword rule (D-95) now blocks a rewrite only when the keyword contains a word the resume never uses in any form (same stem, or a shared start of ≥ 5 letters covering ≥ 60% of the longer word); short words must be equal ("Java" ≠ "JavaScript"). "GraphQL", "Storybook", "frontend architecture" are still blocked; "frontend performance", "internship" (resume: "Intern") are allowed | The replay showed D-95 as first built was wrong: it rejected honest rewrites (2 summaries, 1 bullet) and, by blocking every missing keyword, made it **impossible for tailoring to raise the keyword score**. After the fix the same answers gave 0 warnings and 44 → 50 and 50 → 57 | Tech Design §6.2 steps 3–4 |
+| 2026-11-15 | D-97 | **`tailor-v2` prompt revised for Claude after the first six Claude runs** (still `tailor-v2`: never released). (1) Honesty: rewording may not add an action, responsibility, scale, audience or result the resume does not state, with examples. (2) Headline: a job title the candidate has held, written as in the resume (keeps "Intern"/"Junior"/"Senior"); never the title of the job applied for. (3) Bullets: every bullet is still listed (for the order), but a bullet is reworded only when that makes it match the job better; otherwise its original text is returned and the reason is empty. "A rewritten bullet must not be a copy" and "Rewrite every bullet" removed. (4) Summary: every statement from the resume, no first person | The six Claude runs had no invented tool, employer or number, but had mild embellishments ("and maintained", "large datasets", "a non-technical audience", "leading cross-team initiatives"), a headline that dropped "Intern", and many cosmetic rewrites ("Led migration" → "Led the migration") that inflate the change list the user reviews. The must-rewrite rules were written for `llama3`, which copied; on Claude they cause the cosmetic changes | Tech Design §6.2 step 2 |
+| 2026-11-15 | D-98 | **Day 14 closed with one prompt iteration and one Claude check run; effort tuning deferred.** The user's instruction: one iteration, one test run, then push and start Day 15 | The user's call on time and API spend. Known cost: the revised prompt is checked on one pair only (see Next steps) | Plan Day 14 |
 
 ---
 
@@ -154,6 +160,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - If Vercel preview deploys need to call the API: add a preview-URL regex to the CORS allowlist (rejected for now, D-46).
 - Review page: **edit or delete parsed content** (fix a wrong title, drop a bullet), and **add whole new entries** (a job, education, a project). Out of scope for D-85 (add-only). If done, the guardrails' idea of "original" stays the submitted resume (ADR-014).
 - Show "added by you" in the tailoring result / change list (needs the additions sent separately, ADR-014).
+- Keyword analysis: drop keywords the model lists that do not occur in the job description text (guards against invented keywords changing the score). Not done on Day 13 (D-91).
+- Keyword matching: a larger alias table, and related word forms that are not simple endings ("analysis"/"analyzed", "intern"/"internship" count as related for the guardrail, but not for the score), if the Day 22 evals show misses. (Verb forms "-ed"/"-ing" done in D-96.)
+- Tailoring: compare effort `medium` vs `low` on Claude (quality, latency, cost). Deferred from Day 14 (D-98); fits the Day 22 evals.
+- Guardrail in code for the headline (must equal the original headline or a job title in the resume) and for dropped numbers in a reworded bullet, instead of relying on the prompt (D-97).
 - ~~Overall deadline for LLM calls~~ → decided: overall deadline per request (D-72), implemented on Day 9.
 
 ---
@@ -170,6 +180,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 | 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
 | 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) | **Day 8 update:** with parse-v1 + post-processing → **53/56 checks (95%), stable over 2 runs, zero invented content**; email, skills, degree, dates and links fixed. Still open on llama3: headline missed in 2/3 (it shares a line with contact details), location missed in 1/3.
+| 10 | Medium (quality, dev only) | **Local `llama3` does not tailor with `tailor-v1`** (2 runs, synthetic frontend resume × frontend JD, 29.5–36.5 s, 1,880 input / 765 output tokens, schema-valid on the first attempt). Job analysis and keywords were good (11 keywords, all from the JD). The tailored resume was a **verbatim copy**: no bullet, summary or skill changed; the third job, the education degree/field/dates, the email/phone/location, job locations and the project link were left out; the 2 listed changes had no target and described edits that were not made. The guardrails put everything back (6 warnings, 10 locked fields restored, 1 job put back), so the final resume equalled the original. Keyword score 55 before and after | Day 13 | **Fixed in structure by `tailor-v2` (D-94): `llama3` now rewrites.** Runs the same day: (1) swe × frontend, 29.9 s, 12 bullets reworded, 0 warnings, **but 2 fabricated keywords** ("GraphQL APIs", "A/B testing"; score 50 → 63) → D-95; (2) same pair after D-95 + prompt edits, 32.8 s, summary + 10 bullets reworded, 0 warnings, score 55 → 55, no fabricated keyword; (3) new grad × data analyst, 16.2 s, 2 bullets reworded, 3 rewrites rejected by the keyword rule ("data analysis", "data visualization"), score 44 → 44. **Still open on `llama3`:** filler endings on most bullets ("showcasing expertise in…") although the prompt forbids them; unverifiable claims that are not keywords ("PWA design", "project management"); one dropped number in a rewrite ("Mentored 3 junior engineers" → "Mentored junior engineers"); job title/company sometimes merged into one field; the keyword score did not improve in runs 2–3. Final quality must be judged on the production provider (OD-10). **2026-11-15, same six pairs on both providers with the same code:** `llama3` 15–36.5 s (avg 21.6 s), 11 guardrail warnings, a filler ending on all 31 reworded bullets, 6 numbers dropped from bullets (not caught), 1 invented number (caught), a summary kept in 2 of 6; Claude (`claude-opus-5-5`) 7.9–16.1 s (avg 12.1 s), 0 warnings, no filler, no dropped or invented number, a summary in 6 of 6. **Accepted for `llama3`: it is a free plumbing check, not a quality reference** |
 | 9 | Low (dev only) | **Slow local parse: 49.7 s for a 1-page PDF** on the first real upload (Session 13), against 7–20 s for the fixtures. The log shows one `llama3` call, attempt 1, 1,352 input / 1,029 output tokens, no retry, no error. **Cause not confirmed**; the likely one is a cold start (Ollama reloads the ~4.7 GB model after it has been idle) | Day 11 | **Accepted (D-87), cause found in Session 14: not a cold start.** Same PDF twice: 45 s with the model unloaded, 37.5 s warm, so the load is only ~8 s. The warm call: 1,352 input / 1,029 output tokens in 37.5 s (~27 tokens/s, model 100% on the GPU, Apple M3 Pro). The time is the length of the output (37 skills, 3 projects); the fixtures are shorter (7.7–12.2 s the same day). The progress copy covers waits this long (D-82) |
 
 ---
@@ -672,6 +683,128 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none. Known limits of the guardrails are in D-89 (number words and non-numeric invented claims are not caught).
 **Exit check met?** Day 12 ✅: all guardrail tests green, coverage target met. **Not committed** (D-71).
 **Next session:** see "Next steps" under Current Status.
+
+### 2026-11-14: Session 14, part 3 (Day 12 push + Day 13: keyword service, tailor prompt draft)
+**Day:** 12 → 13 (same session; started when the user said "lets get done with this day 12 task and start day 13")
+**Done**
+- **Day 12 push:** `3e1e4dc` pushed, **GitHub CI green** (run 43660602401; first CI run with coverage).
+- [BE-6] Tests first (`keywordService.test.ts`, `resumeText.test.ts`; red: modules missing), then `apps/api/src/services/keywordService.ts` (`analyzeKeywords`, `normalizeForMatching`) and `services/resumeText.ts` (`collectResumeText`, moved out of the guardrail service, which now imports it). D-91.
+- [AI-3, part 1] Tests first (`llm/prompts/tailor.v1.test.ts`; red), then `apps/api/src/llm/prompts/tailor.v1.ts`: `TAILOR_PROMPT_VERSION` ("tailor-v1"), `TailorLlmOutputSchema`, `TAILOR_SYSTEM_PROMPT`, `buildTailorContent`. `TailorLlmOutputSchema` added to `llm/outputFormat.test.ts` (the JSON schema the SDK sends fits Claude's structured-output subset). D-92.
+- Coverage: `keywordService.ts` and `resumeText.ts` added to `coverage.include`.
+- Tests: keyword 46, resume text 3, tailor prompt 21, output format +4. API 251 → **324**, total **462**.
+- Fixture results: frontend JD keywords vs the honest tailored fixture → exactly the fixture's hand-written analysis (8 matched, 4 missing, 67); data analyst JD vs the new-grad resume → 7 of 10 (70); product manager JD vs the frontend resume → 0.
+
+**Verified**
+- Coverage of the three measured files: **100%** statements / branches (75/75) / functions / lines.
+- One real bug found by the tests while building: the first plural rule kept words ending in "is", so "APIs" was not made singular; rule simplified (only "ss" endings and short words are kept).
+- Deliberate break (D-33): 8 keyword-service breaks and 5 prompt breaks, each run separately. 12 failed at least one test. **One did not:** joining resume fields without a separator still passed, because the test's two fields were not adjacent (a skill category sat between them). Test rewritten with two adjacent skill items; the same break now fails 1 test.
+- `npm run check` ✅ (0 lint warnings, 462 tests).
+- **Not verified:** the prompt has not been sent to any model (Day 14).
+
+**Discussed**
+- The user did not comment on the D-89 question (may the AI remove a job?) before moving on; the rule stays as built and the question is repeated under Next steps.
+
+**Decisions:** D-91, D-92.
+**Doc-sync audit (D-52):** plan (Day 13 items ticked, review left open, tracker 🟡), Tech Design §6.2 steps 2 and 4 and §10, Dev Guide §3 (coverage list), roadmap BE-6, README status, Parking Lot (2 items). API spec: checked, no change (response shape unchanged; `keywordAnalysis` semantics match §3). No shared schema change.
+**Issues / blockers:** none. Day 14 risks are listed under Next steps (context size on `llama3`, strict output schema, undone changes still in the change list).
+**Exit check met?** Day 13 🟡: keyword tests green; "the prompt has been reviewed together" is open. **Not committed** (D-71).
+**Next session:** see "Next steps" under Current Status.
+
+### 2026-11-14: Session 14, part 4 (Day 13 exit check: prompt review + first local tailoring trial)
+**Day:** 13
+**Done**
+- **Prompt review ✅ (Day 13 exit check):** the user answered both review questions (D-93): no removing whole jobs; build each job's bullet points around the job description; the summary and bullet-removal rules are fine. Bullet rule in `TAILOR_SYSTEM_PROMPT` rewritten accordingly.
+- `apps/api/scripts/tailor-run.ts` + `npm run tailor:run -w @tailorcv/api` (new): runs a resume × JD through the tailor prompt, `applyGuardrails` and `analyzeKeywords` with the selected provider and prints timing, tokens, job analysis, keyword score before → after, warnings, what differs from the original, and the model's change list. Fixtures by name, or your own resume JSON + JD file.
+- **First trial on local `llama3`** at the user's request (synthetic frontend resume × frontend JD, twice). Result in Known Issue #10: the pipeline runs end to end and the guardrails held, but the model did not tailor anything.
+
+**Verified**
+- `npm run check` ✅ after the prompt edit and the new script (462 tests, 0 lint warnings).
+- The trial is the first real model call through `tailor-v1`, the guardrails and the keyword service together.
+
+**Discussed**
+- Why the trial failed and what to do: returning the whole resume asks a small model to copy ~1,000 tokens faithfully and tailor at the same time; it only copies, and loses parts. Claude proposed edits-only output → OD-11, for the user to decide.
+- Two smaller findings for Day 14: omitted optional locked fields produce "the AI changed…" warnings (noise), and the model's change list cannot be trusted as a record of what changed.
+
+**Decisions:** D-93. Open: OD-11.
+**Doc-sync audit (D-52):** plan (review ticked, Day 13 ✅ in the tracker), Dev Guide §6 (`tailor:run`), README (script list), DEVLOG (Current Status, OD-11, Known Issue #10). Tech Design §6.2 still describes `tailor-v1` as built, which is correct until OD-11 is decided.
+**Issues / blockers:** Known Issue #10. Not a blocker for the service code; it blocks useful local prompt iteration until OD-11 is decided.
+**Exit check met?** Day 13 ✅ (keyword tests green, prompt reviewed together). **Not committed** (D-71).
+**Next session:** OD-11, then Day 14.
+
+### 2026-11-14: Session 14, part 5 (edits-only tailoring: tailor-v2, apply-edits, tailor service)
+**Day:** 13 → 14 (same session)
+**Done**
+- The user asked where we were stuck and whether tailoring could be tested locally, then: "get in all the information you can from the job description and apply it to all the info we have from the user's parsed resume JSON; what's the issue in that?" Claude explained the issue (the model was asked to return the whole resume and copied it) and built the edits-only design it had recommended (D-94, ADR-015).
+- `llm/prompts/tailor.v2.ts` (new; `tailor.v1.ts` and its test removed, they were never committed): `TAILOR_PROMPT_VERSION` "tailor-v2", lenient `TailorLlmOutputSchema`, `TAILOR_SYSTEM_PROMPT`, `renderResumeForPrompt`, `buildTailorContent`.
+- `services/tailorEdits.ts` (new): `applyTailorEdits`, `describeChanges`.
+- `services/jobTailorService.ts` (new): `createJobTailorService({ llm, logger }).tailor(request, { signal })` → `TailorResponse`. [AI-3]
+- `services/guardrailService.ts`: keyword rule + `jobKeywords` option (D-95).
+- `scripts/tailor-run.ts` now runs `jobTailorService` and prints every change with before/after.
+- Tests: `tailorEdits.test.ts` 14, `jobTailorService.test.ts` 9, `tailor.v2.test.ts` 20 (replaces the 21 v1 tests), guardrail +6. API 324 → **354**, total **492**. `tailorEdits.ts` and `jobTailorService.ts` added to `coverage.include`.
+
+**Prompt iterations on local `llama3` (synthetic fixtures only)**
+1. `tailor-v1`, full resume back: no tailoring (Known Issue #10, part 4 of this session).
+2. `tailor-v2` first version, swe × frontend: every bullet reworded, but two fabricated job keywords and filler endings; no summary, no reasons, no job title (they were optional in the schema).
+3. `tailor-v2` + keyword guardrail + schema making title/summary/reason required + prompt rules against commentary and against importing the job's tools: summary and 10 bullets reworded with reasons, no fabricated keyword; filler endings remain.
+4. Same prompt, new grad × data analyst: works; the keyword rule rejected 3 rewrites over generic terms.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 492 tests). Coverage of the five measured services: 97.14% branches (136/140), 100% functions.
+- Deliberate break (D-33): 14 breaks across `tailorEdits`, `jobTailorService` and the keyword rule, each run separately; all 14 failed at least one test.
+- Three real `tailor-v2` runs on `llama3` (16–33 s). In all three the final resume kept every job, every locked field and every id.
+- **Not verified:** tailoring with the user's own resume and a real job description; any hosted model; the browser (no endpoint or page until Day 15).
+
+**Discussed**
+- Local quality limits (Known Issue #10) and the trade-off of the keyword rule; listed under Next steps for the user.
+
+**Decisions:** D-94, D-95. ADR-015. OD-11 resolved.
+**Doc-sync audit (D-52):** Tech Design §6.2 (steps 2, 2b, 3, 4b, 5 and the prompt file names), API spec §3 example (`tailor-v2`), ADR-015, plan (Day 14 items, tracker 🟡), Dev Guide §3/§6, roadmap AI-3, README status, DEVLOG. D-92 and Session 14 part 3 describe `tailor-v1` as it was; left as history. No shared schema change.
+**Issues / blockers:** Known Issue #10 (quality on the local model). No blocker.
+**Exit check met?** Day 13 ✅. Day 14 🟡: service done; "6 real runs with 0 fabricated facts" not met yet (3 runs; fabricated keywords are now blocked, other invented claims are not). **Not committed** (D-71).
+**Next session:** see "Next steps" under Current Status.
+
+### 2026-11-14: Session 14, part 6 (quality check without a model call; keyword rule fixed)
+**Day:** 14 (same session)
+**Done**
+- The user asked how to improve quality, then whether the Claude Pro subscription could power the app. Answer given: no, the API is billed separately (Console key + credit; roughly 4 cents per tailoring run on Claude Opus 5.5 at $4 / $20 per million tokens); switching is `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` in `apps/api/.env`. OD-10 stays open.
+- The user chose a no-cost check first. Claude wrote, by hand, the answer a strong model would give for the two synthetic pairs (swe × frontend, new grad × data analyst) and replayed them through the real `jobTailorService` steps. `scripts/tailor-run.ts` got `--edits <file>` for this (uses `FakeLlmClient`, no model call).
+- **Findings:** (1) with model-quality edits the output is clean: no filler, every job kept, reasons shown, so the filler and padding seen earlier come from `llama3`, not from the design; (2) our own keyword rule (D-95) rejected 3 honest rewrites (both summaries and one bullet: "frontend performance", "mentor", "internship") and the score could not move (39 → 39, 50 → 50).
+- Fix (D-96): stemming in `keywordService`, word-level keyword rule in `guardrailService`. Tests: keyword +4, guardrail +3. API 354 → **361**, total **499**.
+- **Same answers after the fix:** 0 warnings; swe × frontend 44 → 50 (18 changes, summary kept); new grad × data analyst 50 → 57 (7 changes, summary kept).
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 499 tests); coverage of the measured services 97.43% branches.
+- **Limits of this check:** the answers were written by Claude, who knows the guardrail rules, so they are a best case, not a measurement of any model. They are not committed (scratchpad only). No hosted model has been run.
+
+**Decisions:** D-96.
+**Doc-sync audit (D-52):** Tech Design §6.2 steps 3–4, Dev Guide §6 (`--edits`), Parking Lot item updated, DEVLOG. No schema or API change.
+**Issues / blockers:** none new. Known Issue #10 (local model quality) unchanged.
+**Exit check met?** Day 14 🟡 (unchanged: real runs and prompt iteration still open). **Not committed** (D-71).
+**Next session:** see "Next steps" under Current Status.
+
+### 2026-11-15: Session 15 (Day 14: Claude API runs, provider comparison, prompt revision; push)
+**Day:** 14 → 15
+**Done**
+- The user added a Claude API key to `apps/api/.env` and set `LLM_PROVIDER=anthropic`. `npm run llm:smoke`: ✅ `claude-opus-5-5`, 3.0 s.
+- **Six pairs (2 resumes × 3 JDs) on Claude**, then the same six on local `llama3` with the same code, for a like-for-like comparison. Numbers in Known Issue #10. Synthetic fixtures only; one run per pair and provider.
+- **Bug fixed in `scripts/tailor-run.ts`:** without `--edits` the first positional argument was dropped (`editsAt + 1` is 0 when the flag is absent), so every run with named fixtures failed. Introduced with `--edits` in Session 14 part 6; not caught because the script has no tests.
+- `scripts/tailor-run.ts` prints the call's token counts (input, cache write, cache read, output).
+- **Prompt revision (D-97)**, tests first (4 new assertions in `tailor.v2.test.ts`, red, then green): no embellishment, headline = a held job title, reword a bullet only when it helps, summary from resume facts without first person.
+- **One check run after the revision** (new grad × data analyst, Claude): 5.7 s, 669 input + 570 output tokens (cache tokens were not printed yet), 0 warnings, headline "Data Analyst Intern" (was "Data Analyst | SQL, Python (pandas), Tableau"), no embellishment, 3 changes instead of 7: headline, summary, skills order; **no bullet reworded**. The summary used "where I cleaned…"; the no-first-person rule was added after this run.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 503 tests: api 365).
+- **Not verified:** the revised prompt on the other five pairs; the no-first-person rule on any model; effort `low`; cost per run (cache token counts missing from the one run); the user's own resume.
+
+**Discussed**
+- How the provider switch works (`LLM_PROVIDER` → `createLlmClient`, ESLint boundary). No change.
+- Claude answered the user's question on `llama3` vs Claude with the comparison above.
+
+**Decisions:** D-97, D-98. Still open: OD-10 (the key works; the production-provider decision is not recorded), ADR-015 confirmation.
+**Doc-sync audit (D-52):** Tech Design §6.2 step 2 (prompt rules), Dev Guide §6 (`tailor:run` prints tokens), plan (Day 14 items and tracker), README status, DEVLOG (Current Status, Decision Log, Known Issue #10, Parking Lot). API spec: checked, no change (no schema or contract change; prompt version still `tailor-v2`). `.env.example`: checked, no change.
+**Issues / blockers:** none.
+**Exit check met?** Day 14 ✅ by decision D-98: six real runs on each provider with latency recorded. "0 fabricated facts": no invented tool, employer or number on Claude; the mild embellishments found are addressed by D-97, confirmed on one pair. Effort tuning not done.
+**Next session:** Day 15.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

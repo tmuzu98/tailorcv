@@ -90,7 +90,7 @@ Tailor a parsed resume to a job description.
   "keywordAnalysis": { "matched": ["React", "TypeScript"], "missing": ["GraphQL"], "matchScore": 78 },
   "jobSummary": { "title": "Senior Frontend Engineer", "company": "Acme", "seniority": "Senior", "topRequirements": ["React", "TypeScript", "Design systems"] },
   "warnings": [],
-  "meta": { "durationMs": 31877, "promptVersion": "tailor-v1" }
+  "meta": { "durationMs": 31877, "promptVersion": "tailor-v2" }
 }
 ```
 

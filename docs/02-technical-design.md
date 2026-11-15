@@ -232,12 +232,29 @@ TailorResult = {
 
 ```
 1. Validate body with zod: { resume: Resume, jobDescription: string(100..15000) }
-2. LLM call #2 (jobTailorService), one call that does both:
+2. LLM call #2 (services/jobTailorService.ts), one call that does both:
      a. Analyze JD → title, seniority, top requirements, keywords
-     b. Produce tailored Resume + changes[] honoring the lock rules
+     b. Propose EDITS to the resume. The model does not return the resume (ADR-015).
+   Prompt + schema: llm/prompts/tailor.v2.ts ("tailor-v2"). TailorLlmOutputSchema =
+   { jobSummary, keywords, headline?, summary, bullets: [{ id, text, reason }],
+   removedBulletIds }, lenient (no length/enum constraints; everything is checked in code).
+   The user turn is <resume>…</resume> (the resume as plain text, each job/project bullet
+   prefixed with its id like "[exp_1_b2]", no contact details) + <job_description>…
+   </job_description> + the tone; copies of the delimiter tags inside user text are removed.
+   The system prompt states the honesty rules (no added skill, number, action, scale or
+   audience) and asks for every bullet of every job to be listed, most relevant first, and
+   reworded around the job description only where that makes it match the job better;
+   otherwise the original text is returned (D-93, D-97). The headline is a job title the
+   candidate has held.
    Structured output: TailorLlmOutputSchema through LlmClient.generateStructured (Claude: JSON
    schema from betaZodOutputFormat; Ollama: inlined JSON schema), validated by us (ADR-011)
-3. guardrailService.applyGuardrails(original, tailored) → { resume, warnings, stats }
+2b. tailorEdits.applyTailorEdits(original, edits, keywords) → { resume, reasons, stats }
+   (deterministic). The tailored resume is the ORIGINAL plus: the new headline/summary;
+   reworded bullet text by id (unknown, repeated or blank edits are ignored; bullets the model
+   skips stay as they were); each entry's bullets in the model's order; bullets in
+   removedBulletIds dropped, but never every bullet of an entry; within each skill group, the
+   skills the job's keywords name moved to the front.
+3. guardrailService.applyGuardrails(original, tailored, { jobKeywords }) → { resume, warnings, stats }
    (deterministic, no AI, pure; implemented on Day 12, D-88/D-89). "original" = the resume in
    the request, user additions included (ADR-014). Items are matched by id and the result is
    built from the ORIGINAL entries, so only what the model may edit is taken from its answer:
@@ -256,11 +273,27 @@ TailorResult = {
      - Extra-section items: must be an item of the same original section → else removed + warning
      - Headline, summary, bullet points, details, project description: a rewrite containing a
        number that appears nowhere in the original → original text kept + warning
+     - The same texts: a rewrite that mentions a job keyword the original resume does not
+       cover AND that contains a word the resume never uses in any form ("worked with GraphQL
+       APIs") → original text kept + warning (D-95, D-96). A keyword made only of words the
+       resume already uses ("frontend performance") is allowed: honest rewording is how the
+       keyword score is meant to rise
    `warnings` are user-facing and contain resume text; `stats` are counts only (the only part
    that may be logged).
-4. keywordService: compute matched/missing + matchScore deterministically
-   (normalized, case-insensitive token/phrase matching of JD keywords vs tailored text)
-5. Return TailorResult
+4. keywordService.analyzeKeywords(keywords, tailoredResume) → { matched, missing, matchScore }
+   (deterministic, implemented on Day 13, D-91). `keywords` is the list from the model's job
+   analysis (step 2a). Both sides are normalized: lowercase, punctuation → spaces ("+", "#" and
+   inner dots stay: "c++", "c#", "node.js"), words reduced to a rough stem (plurals, "-ed",
+   "-ing", final "e": "mentored" = "mentor"), aliases ("JS" =
+   "JavaScript", "k8s" = "Kubernetes", "AWS" = "Amazon Web Services"…). A keyword matches when
+   its words occur in ONE resume field, adjacent and in order (whole words: "Java" is not in
+   "JavaScript"). Blank and repeated keywords are dropped. Score = round(100 × matched / total),
+   0 when there are no keywords.
+4b. tailorEdits.describeChanges(original, finalResume, reasons) → changes[]: every real
+   difference between the original and the post-guardrail resume (reworded with before/after
+   and the model's reason, reordered, removed). The model does not write the change list.
+5. Return TailorResult + meta. One `resume tailored` log line with counts only (keyword
+   score before/after, changes, warnings, edit and guardrail stats); never text or keywords
 ```
 
 ### 6.3 LLM integration details
@@ -284,7 +317,7 @@ TailorResult = {
 
 **Local development with Ollama (D-68, ADR-012):** `OllamaLlmClient` calls Ollama's `/api/chat` with `format` = the inlined JSON schema (`z.toJSONSchema`), `temperature: 0`, explicit `num_ctx`, `num_predict = maxTokens`, and the same zod validation / retry-once / error codes. PDFs are converted to text with unpdf first (no layout); `effort` is ignored. Expect weaker extraction (first test: fields verbatim but it invented skill categories) and ~20 s+ per resume on an M3 Pro with `llama3` 8B. Prompt quality for real users must be checked on the production provider before launch.
 
-Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions (`PARSE_PROMPT_V1`, `TAILOR_PROMPT_V1`). The prompt version is written to the logs so output quality can be tied back to a specific prompt.
+Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions (`parse.v1.ts`, `tailor.v2.ts`). The prompt version is written to the logs so output quality can be tied back to a specific prompt.
 
 **Prompt-injection note:** the JD and the resume are untrusted user text. They go inside clearly delimited tags (`<job_description>…</job_description>`), and the system prompt tells the model to treat them only as data. The guardrail service is the real enforcement layer.
 
@@ -352,7 +385,7 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 | Level | Tool | What |
 |---|---|---|
-| Unit | Vitest | Schemas, guardrail rules (≥ 90% branch coverage enforced by `npm test`, D-90), keyword scoring, id assignment, error mapping, resume normalizer, LLM clients (stubbed SDK) |
+| Unit | Vitest | Schemas, guardrail rules and keyword scoring (≥ 90% branch coverage enforced by `npm test`, D-90), prompt builders, id assignment, error mapping, resume normalizer, LLM clients (stubbed SDK) |
 | Integration (API) | Vitest + Supertest | Routes with `FakeLlmClient` (deterministic answers/errors via `buildTestApp(env, { llm })`); every error code per route |
 | LLM clients (real transport) | Vitest + local fake HTTP APIs | The real Anthropic SDK and the Ollama client against local fakes of their APIs (headers, retries, timeouts, aborts) |
 | LLM contract | Vitest (`tests/contract/llmClient.contract.test.ts`) | The same scenarios against every provider client, identical outcomes required (ADR-013) |

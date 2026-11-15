@@ -4,7 +4,7 @@ Upload a PDF resume, paste a job description, and get back an honest, ATS-friend
 
 **Stack:** React 19 + Vite + Tailwind (frontend) · Node.js 24 + Express 5 (backend) · TypeScript + zod (shared) · Claude API (AI)
 
-> 🚧 **Status:** Week 3 (Day 13 of 25). You can **upload a PDF resume in the browser**, the AI turns it into structured data (local Ollama in development), and the **review page shows a compact summary you can add missing details to** (skills, bullet points, certifications, contact fields). Done: Phase 0, Milestone 1.1, PDF upload/validation, provider-neutral LLM layer (Claude + Ollama), AI parsing, parse endpoint, upload page, review page (**Milestone 1.2: upload & parse**), honesty guardrail service. Next: keyword service and the tailoring prompt (Day 13). Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
+> 🚧 **Status:** Week 3 (Day 15 of 25). You can **upload a PDF resume in the browser**, the AI turns it into structured data (local Ollama or Claude in development), and the **review page shows a compact summary you can add missing details to** (skills, bullet points, certifications, contact fields). Done: Phase 0, Milestone 1.1, PDF upload/validation, provider-neutral LLM layer (Claude + Ollama), AI parsing, parse endpoint, upload page, review page (**Milestone 1.2: upload & parse**), honesty guardrail service, keyword matching, and a tailoring service that works from the command line (`npm run tailor:run -w @tailorcv/api`). Next: the tailor endpoint and job description page (Day 15). Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
 ## Quickstart
 
@@ -35,11 +35,12 @@ npm run dev
 
 **API workspace scripts** (run with `-w @tailorcv/api`):
 
-| Command                                  | What it does                                                                                                                     |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run llm:smoke -w @tailorcv/api`     | One tiny real call through the selected `LLM_PROVIDER` (checks Ollama or your Claude key)                                        |
-| `npm run parse:pdf -w @tailorcv/api`     | Runs the test PDFs (or `-- ~/your.pdf [--json]`) through the real parse pipeline and scores accuracy. Local only, nothing stored |
-| `npm run fixtures:pdfs -w @tailorcv/api` | Regenerates the synthetic test PDFs (output is committed)                                                                        |
+| Command                                  | What it does                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run llm:smoke -w @tailorcv/api`     | One tiny real call through the selected `LLM_PROVIDER` (checks Ollama or your Claude key)                                                                         |
+| `npm run parse:pdf -w @tailorcv/api`     | Runs the test PDFs (or `-- ~/your.pdf [--json]`) through the real parse pipeline and scores accuracy. Local only, nothing stored                                  |
+| `npm run tailor:run -w @tailorcv/api`    | Runs a synthetic resume × job description (or `-- ~/resume.json ~/jd.txt`) through the tailor prompt, guardrails and keyword analysis. Local only, nothing stored |
+| `npm run fixtures:pdfs -w @tailorcv/api` | Regenerates the synthetic test PDFs (output is committed)                                                                                                         |
 
 ## Project layout
 
