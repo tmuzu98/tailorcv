@@ -307,7 +307,7 @@ describe("ReviewPage: navigation", () => {
     add(section("Skills"), "Add a skill", "Docker");
     fireEvent.click(screen.getByRole("button", { name: /upload a different file/i }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(screen.getByRole("heading", { name: /upload your resume/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /upload your resume/i })).toBeInTheDocument();
     await waitFor(() => expect(window.sessionStorage.getItem(SESSION_STORAGE_KEY)).toBeNull());
   });
 

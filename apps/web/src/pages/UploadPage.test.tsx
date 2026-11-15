@@ -111,7 +111,8 @@ describe("UploadPage: upload + parse", () => {
     choose(pdf());
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/review"));
-    expect(screen.getByRole("heading", { name: /review your resume/i })).toBeInTheDocument();
+    // The router's location changes before React renders the new page, so wait for the page.
+    expect(await screen.findByRole("heading", { name: /review your resume/i })).toBeInTheDocument();
     expect(screen.getByText(sampleResumeSwe.basics.fullName)).toBeInTheDocument();
     expect(window.sessionStorage.getItem(SESSION_STORAGE_KEY)).toContain(
       sampleResumeSwe.basics.fullName,
