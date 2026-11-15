@@ -1,8 +1,10 @@
 import type { RequestHandler } from "express";
 import multer, { MulterError } from "multer";
+import { UPLOAD_LIMITS } from "@tailorcv/shared";
 import { AppError } from "../lib/errors";
 
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** From @tailorcv/shared so the web app checks the same limit. */
+export const MAX_UPLOAD_BYTES = UPLOAD_LIMITS.maxBytes;
 export const UPLOAD_FIELD = "file";
 
 /**

@@ -4,7 +4,7 @@ Upload a PDF resume, paste a job description, and get back an honest, ATS-friend
 
 **Stack:** React 19 + Vite + Tailwind (frontend) · Node.js 24 + Express 5 (backend) · TypeScript + zod (shared) · Claude API (AI)
 
-> 🚧 **Status:** Week 1 done. Phase 0 (skeleton, tests, CI) and Milestone 1.1 (shared schemas, error contract, security middleware) complete. Next: PDF upload & parsing (Week 2). Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
+> 🚧 **Status:** Week 3 (Day 12 of 25). You can **upload a PDF resume in the browser**, the AI turns it into structured data (local Ollama in development), and the **review page shows a compact summary you can add missing details to** (skills, bullet points, certifications, contact fields). Done: Phase 0, Milestone 1.1, PDF upload/validation, provider-neutral LLM layer (Claude + Ollama), AI parsing, parse endpoint, upload page, review page (**Milestone 1.2: upload & parse**). Next: tailoring (Week 3), starting with the guardrail service. Progress: [`docs/DEVLOG.md`](docs/DEVLOG.md).
 
 ## Quickstart
 
@@ -32,6 +32,14 @@ npm run dev
 | `npm run check`                   | Lint + format check + typecheck + tests. **Run this before committing** |
 | `npm run build`                   | Production builds (`apps/api/dist`, `apps/web/dist`)                    |
 | `npm run lint` / `npm run format` | ESLint / Prettier (write)                                               |
+
+**API workspace scripts** (run with `-w @tailorcv/api`):
+
+| Command                                  | What it does                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run llm:smoke -w @tailorcv/api`     | One tiny real call through the selected `LLM_PROVIDER` (checks Ollama or your Claude key)                                        |
+| `npm run parse:pdf -w @tailorcv/api`     | Runs the test PDFs (or `-- ~/your.pdf [--json]`) through the real parse pipeline and scores accuracy. Local only, nothing stored |
+| `npm run fixtures:pdfs -w @tailorcv/api` | Regenerates the synthetic test PDFs (output is committed)                                                                        |
 
 ## Project layout
 

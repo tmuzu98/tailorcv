@@ -11,3 +11,5 @@ export * from "./health.schema";
 export * from "./resume.schema";
 export * from "./tailor.schema";
 export * from "./api.schema";
+export * from "./limits";
+export * from "./resumeAdditions";

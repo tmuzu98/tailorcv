@@ -18,9 +18,12 @@ How to set up, build, and contribute to the project. Sections marked *(after Pha
 ```bash
 git clone <repo-url> resumeParser && cd resumeParser
 npm install                       # installs all workspaces
-cp apps/api/.env.example apps/api/.env
-# edit apps/api/.env → set ANTHROPIC_API_KEY
-npm run dev                       # api on :4000, web on :5173
+cp apps/api/.env.example apps/api/.env   # optional: the defaults work for local development
+# AI in development = local Ollama (LLM_PROVIDER=ollama, D-68): install https://ollama.com, then
+ollama pull llama3
+npm run llm:smoke -w @tailorcv/api       # checks the selected provider
+npm run dev                       # api on :4000, web on :5173 → open http://localhost:5173
+# To use Claude instead: LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY in apps/api/.env
 ```
 
 ## 3. Scripts (root)
@@ -28,12 +31,15 @@ npm run dev                       # api on :4000, web on :5173
 | Script | Does |
 |---|---|
 | `npm run dev` | Runs api + web in watch mode |
-| `npm run build` | Builds shared → api → web |
+| `npm run build` | Builds the API (tsup) and the web app (Vite); `shared` is consumed as TS source |
+| `npm run check` | Lint + format check + typecheck + all tests. **Run before every commit** (mirrors CI) |
 | `npm run lint` / `npm run format` | ESLint / Prettier |
 | `npm run typecheck` | `tsc --noEmit` in all workspaces |
 | `npm test` | Vitest in all workspaces |
-| `npm run test:e2e` | Playwright (starts the apps in test mode with the fake LLM) |
-| `npm run eval` | Runs the AI eval set against the **real** API. Costs money, run it by hand |
+| `npm run test:e2e` | *(planned, Day 21)* Playwright (starts the apps in test mode with the fake LLM) |
+| `npm run eval` | *(planned, Day 22)* Runs the AI eval set against the selected **real** provider. With Claude it costs money: run it by hand |
+
+API workspace scripts (`-w @tailorcv/api`): `llm:smoke` (one real call via `LLM_PROVIDER`), `parse:pdf` (parse + score PDFs locally), `fixtures:pdfs` (regenerate test PDFs). See §6.
 
 ## 4. Coding conventions
 

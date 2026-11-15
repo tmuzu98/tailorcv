@@ -1,4 +1,9 @@
-import type { ParseResponse, TailorResponse } from "@tailorcv/shared";
+import {
+  EMPTY_RESUME_ADDITIONS,
+  type ParseResponse,
+  type ResumeAdditions,
+  type TailorResponse,
+} from "@tailorcv/shared";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   EMPTY_SESSION,
@@ -16,7 +21,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => saveSession(data), [data]);
 
   const setParsed = useCallback(
-    (parsed: ParseResponse) => setData((d) => ({ ...d, parsed, tailorResult: null })),
+    (parsed: ParseResponse) =>
+      setData((d) => ({ ...d, parsed, additions: EMPTY_RESUME_ADDITIONS, tailorResult: null })),
+    [],
+  );
+  const setAdditions = useCallback(
+    (additions: ResumeAdditions) => setData((d) => ({ ...d, additions, tailorResult: null })),
     [],
   );
   const setJobDescription = useCallback(
@@ -30,8 +40,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => setData(EMPTY_SESSION), []);
 
   const value = useMemo<SessionValue>(
-    () => ({ ...data, setParsed, setJobDescription, setTailorResult, reset }),
-    [data, setParsed, setJobDescription, setTailorResult, reset],
+    () => ({ ...data, setParsed, setAdditions, setJobDescription, setTailorResult, reset }),
+    [data, setParsed, setAdditions, setJobDescription, setTailorResult, reset],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

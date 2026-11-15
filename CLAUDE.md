@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-AI resume-tailoring web app ("TailorCV", working name): upload a PDF resume + paste a job description → honest, ATS-friendly tailored resume. React + Vite frontend, Node.js + Express backend, shared zod schemas, Claude API. We are **pair programming** this project.
+AI resume-tailoring web app ("TailorCV", working name): upload a PDF resume + paste a job description → honest, ATS-friendly tailored resume. React + Vite frontend, Node.js + Express backend, shared zod schemas, provider-neutral LLM layer: Claude API in production, local Ollama in development (`LLM_PROVIDER`, ADR-012/013). We are **pair programming** this project.
 
 ## Session protocol (mandatory)
 
@@ -34,6 +34,7 @@ AI resume-tailoring web app ("TailorCV", working name): upload a PDF resume + pa
 
 - Tailor, never fabricate. Locked resume fields are enforced by `guardrailService`.
 - Never log or commit real resume content, JD text, or secrets.
-- Tests and CI never call the real Claude API (use `FakeLlmClient`).
+- Tests and CI never call a real model, Claude or Ollama (use `FakeLlmClient` or the local fake APIs).
+- Only `apps/api/src/llm/` may import an LLM SDK or a concrete client (ESLint boundary, D-69); everything else uses `LlmClient` + `createLlmClient()`.
 - Schema changes start in `packages/shared`, and the API spec doc is updated in the same change.
 - Commit or push only when the user asks.

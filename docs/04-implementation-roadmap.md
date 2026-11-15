@@ -74,12 +74,12 @@ Estimates are in ideal dev-days (d).
 | BE-3 | Upload middleware: multer memory storage, 5 MB limit, MIME + magic-byte check | BE | 0.5d | BE-1 |
 | BE-4 | `pdfValidationService` (unpdf): page count, encryption | BE | 0.5d | BE-3 |
 | AI-1 | `LlmClient` interface + Anthropic implementation (structured output, adaptive thinking, effort, refusal fallback, stop_reason checks, typed error mapping, token usage logging) + `FakeLlmClient` for tests | AI | 1d | SHR-1 |
-| AI-2 | `PARSE_PROMPT_V1` + `resumeParserService` (PDF document block → `Resume`), id assignment post-processing | AI | 1d | AI-1 |
+| AI-2 | `PARSE_PROMPT_V1` + `resumeParserService` (neutral PDF part → `Resume`; Claude gets a native document block, Ollama extracted text), id assignment post-processing | AI | 1d | AI-1 |
 | BE-5 | `POST /api/v1/resumes/parse` route + controller + integration tests (with fake LLM) | BE | 0.5d | BE-4, AI-2 |
 | FE-1 | Upload page: dropzone, client-side type/size checks, upload mutation, loading and error states | FE | 1d | PLT-5, SHR-1 |
 | FE-2 | Typed API client (`api/client.ts`) + error-code → message mapping | FE | 0.5d | SHR-1 |
 | FE-3 | Session store (parsedResume, jd, result) + route guards | FE | 0.5d | PLT-5 |
-| FE-4 | Review page: read-only rendering of the parsed `Resume` | FE | 1d | FE-3 |
+| FE-4 | Review page: compact summary of the parsed `Resume` + user additions (D-85); read-only `ResumeView` kept for the tailored preview | FE | 1d | FE-3 |
 
 **Demo:** upload a real PDF on your own machine and see the structured resume rendered.
 
@@ -105,7 +105,7 @@ Estimates are in ideal dev-days (d).
 | FE-9 | "Tailor for another job" (keep the parsed resume, clear the JD/result) + "Start over" | FE | 0.25d | FE-7 |
 | FE-10 | Responsive layout, accessibility pass (labels, focus, contrast), privacy note | FE | 1d | FE-7 |
 | QA-1 | Playwright E2E: happy path + 3 error paths (LLM mocked via an API test mode) | QA | 1d | FE-8 |
-| AI-5 | Mini eval script: run 10 synthetic resume×JD pairs against the real API and report guardrail warnings, locked-field diffs, and keyword scores | AI | 1d | BE-7 |
+| AI-5 | Mini eval script: run 10 synthetic resume×JD pairs against the selected real provider (`LLM_PROVIDER`; the production provider before launch, OD-10) and report guardrail warnings, locked-field diffs, and keyword scores | AI | 1d | BE-7 |
 | QA-2 | Manual test pass on 10+ varied PDFs (1-col, 2-col, scanned, designer templates) and log issues | QA | 0.5d | FE-8 |
 
 ### Milestone 1.5: MVP release

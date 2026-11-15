@@ -14,17 +14,23 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-06 |
-| Phase | Phase 1 (MVP), Milestone 1.2 (upload & parse) |
-| Current day (per `07-daily-development-plan.md`) | **Day 9 ✅ complete (pushed)**. Next = **Day 10** (started in the same session) |
-| Branch | `main` → in sync with `origin/main` |
+| Last updated | 2026-11-14 |
+| Phase | Phase 1 (MVP). **Milestone 1.2 (upload & parse) complete**; Milestone 1.3 (tailoring) starts on Day 12 |
+| Current day (per `07-daily-development-plan.md`) | **Day 11 ✅** (the user's browser check and the demo passed, Session 14). **Next: Day 12**, guardrail service, test-first |
+| Branch | `main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `docs: log Day 9 push` (pushed). Day 9 code commit `0f85314` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **277 tests**: shared 53, web 31, api 193). Builds ✅ (web bundle 438 KB / 134 KB gzip). **GitHub CI ✅ green on Day 9** (run 42309869605) |
+| Last commit | Days 10–11 committed and pushed in Session 14 (see the Session 14 entry for the hash and the CI run) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **331 tests**: shared 69, web 69, api 193). Builds ✅ (web 464 KB / 141 KB gzip) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | `npm run dev` from the repo root → API :4000 + Web :5173. **AI: local Ollama** (`LLM_PROVIDER=ollama`, `llama3`). `POST /api/v1/resumes/parse` now returns a real parsed resume (7–20 s locally) |
+| Local dev | Servers **running** when this was written (`npm run dev`, started in Session 14): **http://localhost:5173**, API on :4000, Ollama 0.40.16 `llama3`. If they are down: `npm run dev` from the repo root (Ollama must be running, `ollama serve`) |
 
-**Next action:** Day 10: upload page (UI primitives, dropzone + client checks, `useParseResume` mutation with a long-wait loading state, friendly errors + retry, success → store → `/review`, component tests).
+**Next action:** start Day 12 (guardrail service, test-first).
+
+**Next steps (as of the end of Day 11, in order)**
+1. **Day 12: guardrail service, test-first** (AI-4). Write the tests with handcrafted "bad tailored output" fixtures first, then `services/guardrailService.ts`, ≥ 90% branch coverage. Note from ADR-014: the "original" the guardrails compare against is the resume in the tailor request, which already includes the user's additions; add a test that a user-added skill survives.
+2. **Day 13:** keyword service + tailor prompt draft. **Day 14:** tailor service + prompt iteration on local Ollama.
+3. **Day 15:** tailor endpoint + job description page. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
+4. **Before Day 24:** resolve OD-10 (hosted LLM provider + key). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
 
 **Blockers:** none. **Before Day 24:** OD-10 (hosted LLM provider + key).
 
@@ -125,6 +131,13 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-06 | D-78 | **Wiring:** `createApp({ env, logger, llm })`: `server.ts` builds `llm` with `createLlmClient(env, logger)` (so `LLM_PROVIDER` applies); `createApp` builds `resumeParserService`; `createResumesRouter({ limiters, parser })` → `parseResumeHandler(parser)` in `controllers/resumesController.ts` (HTTP only: validatePdf → parse → JSON). `buildTestApp(env, { llm })` defaults to `FakeLlmClient` | Dependency injection as planned (ADR-011); routes stay thin; tests never touch a real model | Tech Design §4 |
 | 2026-11-06 | D-79 | **Overall deadline implementation** (D-72): neutral `signal?: AbortSignal` on `GenerateStructuredParams`; clients pass it to their transport (SDK request option / `AbortSignal.any` with the per-attempt timeout) and rethrow aborts untouched (no mapping/logging), and stop retrying once aborted. `DeadlineLlmClient`/`withDeadline` wraps every client from `createLlmClient()`: aborts via the signal **and** races so it returns at the deadline even if a client ignores the signal → `AI_TIMEOUT`; a caller cancel passes through. `LLM_DEADLINE_MS` default 120 000 (anthropic) / 300 000 (ollama). The controller aborts the AI call when the HTTP client disconnects (`res.on("close")` before finish). Contract suite +1 scenario (caller cancel) | One budget regardless of provider/retries; no AI spend for responses nobody reads (verified: curl -m 1 → `request aborted`, no `llm call completed`) | Tech Design §6.3 |
 | 2026-11-06 | D-80 | **FE data layer:** `apiRequest` + `ApiError` (server codes + `NETWORK_ERROR`/`BAD_RESPONSE`/`ABORTED`), success bodies validated with the shared schemas; `parseResume(file)`; `toFriendlyError()` with `Record<ApiErrorCode, …>` copy + next action, server text only for `PDF_TOO_MANY_PAGES`, `Retry-After` → "about N seconds/minutes"; `health.ts` now uses `apiRequest`. Session = React context in `src/state/` (`sessionContext.ts` + `session.tsx`, split for Fast Refresh), sessionStorage `tailorcv.session.v1` validated on load, new resume clears the tailoring result. Guards via `RequireSession`. `AppProviders` (TanStack Query, mutations never auto-retry + session) used by `main.tsx` and tests. `zod` declared as a direct web dependency (was a phantom dependency via hoisting) | One error shape for the UI, contract checks in the browser too, refresh-safe session, no crash in private mode | Tech Design §6.4 |
+| 2026-11-06 | D-81 | **Upload limits moved to `packages/shared`** as `UPLOAD_LIMITS` (`maxBytes` 5 MB, `maxPages` 5); the API's `MAX_UPLOAD_BYTES` / `MAX_PDF_PAGES` now come from it and the web app's checks/hints use it | One source of truth so browser checks and server enforcement can't drift (same pattern as the JD limits, D-43). API spec §6 lists it | `limits.ts` |
+| 2026-11-06 | D-82 | **Upload UX:** a valid file starts uploading immediately (no extra confirm button); instant client checks (PDF by MIME **or** `.pdf` name, since some OSes send a blank type; not empty; ≤ 5 MB); time-based progress copy (0 s / 8 s / 25 s) + elapsed seconds + **Cancel** (aborts the request → the API cancels the AI call); errors via `toFriendlyError()` with "Try again" only for retryable codes and the request id as "Reference"; a cancel is not shown as an error; success → `setParsed` → `/review`. Feature code in `features/upload/` (component files export only components); UI primitives in `components/ui/` (Button `type="button"` by default, Alert role alert/status, decorative Spinner). The Review placeholder shows a temporary summary line until Day 11 | Local AI can take 7–60 s, so the wait must be honest and cancellable; fewer clicks for the main path | Tech Design §6.4 |
+| 2026-11-06 | D-83 | ADR statuses brought up to date: **ADR-002** (Express 5), **ADR-003** (PDF sent natively to Claude; Ollama extracts text in dev), **ADR-005** (two-step API, parse live), **ADR-007** (stateless MVP) → Accepted. ADR-004 (client-side PDF, Day 18) and ADR-006 (guardrails, Day 12) stay Proposed. Accepted ADRs are not edited (ADR-008 keeps its `messages.parse()` wording; its status line points to ADR-011) | Doc-sync audit requested by the user (D-52) | ADR log |
+| 2026-11-09 | D-84 | **Review page lists everything read from the PDF** (Day 11 / FE-4, built as soon as the Day 10 browser check passed). `features/resume-view/ResumeView.tsx`: read-only, header (name, headline, contact details, links) then Summary, Experience, Education, Skills, Projects, Certifications, additional sections; **empty sections and blank optional fields are skipped**; **every value is plain text, resume links are not clickable**. `ReviewPage`: counts line (jobs, bullet points, education, skills, projects, certifications, pages, read time), a **warning listing common details that were not found** (email, phone, work experience, education, skills), "Looks good, continue" → `/job`, "Upload a different file" → clears the session → `/`. Read-only in the MVP (no editing) | User request after the first real upload: the one-line summary wasn't enough to check the parse ("list down all the important details from the resume for the user to see"). Plain-text links: a URL extracted from an uploaded PDF is untrusted input. The warning helps the user spot a bad read before tailoring | Tech Design §6.4 |
+| 2026-11-09 | D-85 | **The review page is a compact summary, and the user can add to it** (replaces the full-resume layout of D-84 on this page, same day). `features/resume-review/ResumeSummary.tsx`: Contact grid; one line per job / school / project / certification; skills one line per category; bullet points, education details and the profile summary folded into `<details>`; counts in the section headings. **The user can add:** a missing headline / email / phone / location (only where the PDF had nothing), skills (duplicates refused, case-insensitive), bullet points on an **existing** job, certifications (name + optional issuer and date). Additions are marked "Added by you", can be removed, survive a refresh, and come with the note "only add things that are true". **Not in scope:** editing or deleting parsed content, adding new jobs / education / projects (Parking Lot). `ResumeView` stays for the tailored preview (Day 16) | User: the page "looks exactly same as a resume, how about we show a little compact version of it and let the user also add some things if they want to". Add-only keeps the page simple and keeps "what the PDF said" intact; user additions are the user's own statements, so they don't conflict with "tailor, never fabricate" (that rule binds the AI) | Tech Design §6.4, PRD FR-4 |
+| 2026-11-09 | D-86 | **How additions are stored and reach the backend:** `packages/shared/src/resumeAdditions.ts` holds `ResumeAdditionsSchema`, `RESUME_ADDITION_LIMITS` (skill ≤ 60 chars, bullet ≤ 500, other fields ≤ 200; ≤ 50 skills, 50 bullets, 20 certifications) and the pure `applyResumeAdditions()` (never overwrites parsed fields, "Additional skills" group, next free ids, skips unknown jobs and duplicate skills). The web session gains `additions` + `setAdditions` (a new resume clears them; changing them clears the tailoring result; old stored sessions load with none). **No new endpoint and no new request field:** the tailor request will carry the merged `Resume`. **Backend contract change:** `TailorRequestSchema` now rejects a resume with duplicate ids (`VALIDATION_ERROR`), because ids can be created on the client and the guardrails match by id; the check is on the request, not on `ResumeSchema` (which must stay plain for structured outputs). No `apps/api` code changed: the tailor route doesn't exist until Day 15 | Stateless design (ADR-007): the resume lives in the browser, so there is nothing to save on the server. One merge function, shared and tested, means the browser and the API can't disagree about the merged shape | ADR-014, API spec §3/§6 |
+| 2026-11-14 | D-87 | **Accept the slow local parse (37–45 s for the user's resume) and move on.** No model or prompt change now. If the wait gets in the way during the tailoring days: try a smaller local model, or trim what the parse prompt asks the model to emit | Measured in Session 14: it is generation speed, not a cold start (Known Issue #9). The progress copy covers waits this long (D-82), and the hosted production model will be faster | — |
 
 ---
 
@@ -134,6 +147,8 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Frontend "warm-up" ping to `/api/v1/health` on page load to hide Render free-tier cold starts (ADR-009). Do it on Day 10 or Day 24.
 - Shared rate-limit store (e.g. Redis) if the API ever runs on more than one instance (ADR-010).
 - If Vercel preview deploys need to call the API: add a preview-URL regex to the CORS allowlist (rejected for now, D-46).
+- Review page: **edit or delete parsed content** (fix a wrong title, drop a bullet), and **add whole new entries** (a job, education, a project). Out of scope for D-85 (add-only). If done, the guardrails' idea of "original" stays the submitted resume (ADR-014).
+- Show "added by you" in the tailoring result / change list (needs the additions sent separately, ADR-014).
 - ~~Overall deadline for LLM calls~~ → decided: overall deadline per request (D-72), implemented on Day 9.
 
 ---
@@ -146,10 +161,11 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2 | Info | `npm run typecheck` errors with "No workspaces found" until workspaces exist | Day 1 | ✅ Resolved Day 2 |
 | 3 | Low | npm 11 warns on every install about blocked install scripts (`esbuild`, `fsevents`). Harmless noise (D-21) | Day 2 | Accepted. If needed: `npm install-scripts approve <pkg>` or `deny <pkg>` to silence |
 | 4 | Medium (process) | **npm quirk:** `npm install <pkgs> --workspace=<path>` sometimes installs but **doesn't save runtime deps** to the workspace `package.json` on the first run (happened 3× on Day 2; dev deps were fine). Also, installing a local workspace package by name (`@tailorcv/shared`) fails because it isn't on the registry | Day 2 | Workaround: **always check the workspace `package.json` after installing**, and re-run if missing. Add local packages by hand as `"@tailorcv/shared": "*"` then `npm install` |
-| 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod. **Day 9: 438 KB (134 KB gzipped) after TanStack Query** | Day 2 | Revisit on Day 20 (perf/a11y pass) |
+| 5 | Info | Web production bundle is 403 KB (124 KB gzipped), mostly React + zod. **Day 9: 438 KB (134 KB gzipped) after TanStack Query; Day 10: 449 KB (138 KB); Day 11: 464 KB (141 KB)** | Day 2 | Revisit on Day 20 (perf/a11y pass) |
 | 6 | Resolved | `git push` failed: "Invalid username or token. Password authentication is not supported". Cause: git used an old macOS Keychain credential, and the `gh` token lacked the `workflow` scope needed for `.github/workflows/` files | Day 3 | ✅ Fixed (D-36). If it recurs on a new machine: `gh auth setup-git` + `gh auth refresh -h github.com -s workflow` |
 | 7 | Low (doc drift) | Tech Design §7 lists "`npm audit` in CI, Dependabot" as a control, but neither is set up (CI has no audit step, no `dependabot.yml`). Found in the Day 5 doc audit | Day 5 | Open. Decide: add a Dependabot config + a non-blocking `npm audit --omit=dev` CI step (fits Day 21–24), or remove it from the design |
 | 8 | Medium (quality, dev only) | **Local `llama3` 8B extraction quality** (real `OllamaLlmClient` run on the 3 fixture PDFs with `ResumeSchema`, before any real prompt): schema-valid and names/companies/titles/dates/bullet counts/education correct (incl. the 2-column PDF), **but the email was dropped in all 3, and skills came back as empty groups in 2 of 3**; earlier probe invented skill categories. 11–20 s per resume | Day 7 | Open → Day 8: write the parse prompt with explicit field rules, add post-processing (drop empty groups) and fixture-based quality checks (email present, skills non-empty, bullets verbatim). Consider trying a newer 8–14B local model (user's choice, a few GB). Final quality must be checked on the production provider (OD-10) | **Day 8 update:** with parse-v1 + post-processing → **53/56 checks (95%), stable over 2 runs, zero invented content**; email, skills, degree, dates and links fixed. Still open on llama3: headline missed in 2/3 (it shares a line with contact details), location missed in 1/3.
+| 9 | Low (dev only) | **Slow local parse: 49.7 s for a 1-page PDF** on the first real upload (Session 13), against 7–20 s for the fixtures. The log shows one `llama3` call, attempt 1, 1,352 input / 1,029 output tokens, no retry, no error. **Cause not confirmed**; the likely one is a cold start (Ollama reloads the ~4.7 GB model after it has been idle) | Day 11 | **Accepted (D-87), cause found in Session 14: not a cold start.** Same PDF twice: 45 s with the model unloaded, 37.5 s warm, so the load is only ~8 s. The warm call: 1,352 input / 1,029 output tokens in 37.5 s (~27 tokens/s, model 100% on the GPU, Apple M3 Pro). The time is the length of the output (37 skills, 3 projects); the fixtures are shorter (7.7–12.2 s the same day). The progress copy covers waits this long (D-82) |
 
 ---
 
@@ -511,6 +527,121 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Push:** the user said "lets push day 9 and start day 10". Secret scan clean. Committed `0f85314 feat: real parse endpoint, AI deadline and frontend data layer (Day 9)`, pushed, **GitHub CI green** (run 42309869605).
 **Next session:** Day 10 (upload page), started right away.
+
+### 2026-11-06: Session 12 (Day 10: Upload page)
+**Day:** 10 (same session; started after the user said "lets push day 9 and start day 10")
+
+**Done**
+- **Day 9 push:** `0f85314` pushed, **GitHub CI green** (run 42309869605); DEVLOG push note `05e780a`.
+- `packages/shared/src/limits.ts` (`UPLOAD_LIMITS`), used by the API and the web app (D-81).
+- [FE-1] `components/ui/` Button, Card, Alert, Spinner; `features/upload/` `fileChecks.ts`, `useParseResume.ts` (mutation + cancel + abort on unmount), `Dropzone.tsx`, `ParseProgress.tsx`, `progressMessage.ts`; `pages/UploadPage.tsx` (real page); `pages/ReviewPage.tsx` temporary summary (D-82).
+- Tests: `pages/UploadPage.test.tsx` (14): limits hint, non-PDF, > 5 MB, empty, blank-MIME `.PDF` accepted, loading state with file name, success → session + `/review`, multipart field, drag and drop, cancel aborts (no error shown), encrypted (no retry, reference shown), page-count message from the server, AI timeout → Try again → success, network error; `progressMessage`. Web 31 → **45**, total **291**.
+- Docs (D-52): plan (Day 10 ticked, exit check pending), Tech Design §4 tree + §6.4 (loading UX, upload page), API spec §6 (`UPLOAD_LIMITS`).
+
+**Verified**
+- Deliberate break (D-33): size check, navigate to `/review`, cancel abort, Try again button, request-id reference → **5 tests failed**; restored → 45 green.
+- `npm run check` ✅ (0 lint warnings); builds ✅.
+- Dev servers: all 11 new modules compile in Vite (0 errors); a real parse through the Vite proxy (the browser's path) → 200 in ~12 s.
+
+**Decisions:** D-81 → D-83.
+**Issues / blockers:** none. Known Issue #5: web bundle 449 KB / 138 KB gzip. Known Issue #7 (npm audit in CI + Dependabot) still open.
+**After the build (conversation)**
+- The user asked whether both dev servers were running → checked: API :4000 ✅ (health ok), web :5173 ✅, Vite proxy ✅, Ollama 0.40.14 ✅.
+- The user asked what they can do if they upload their resume now → explained: step 1 of 4 only. Checks → local llama3 extracts everything (contact, headline, summary, jobs with verbatim bullets, education, skills, projects, certifications, other sections) in ~7–20 s → lands on Review with a one-line summary; full JSON via `npm run parse:pdf -w @tailorcv/api -- ~/resume.pdf --json`. Private (local AI, nothing stored, counts-only logs; the result stays in the tab's sessionStorage). Known llama3 gaps (headline/location). Not yet: review/edit (Day 11), tailoring (Days 12–15), change list + keywords (Day 16), PDF download (Days 18–19). Asked them to report wrong fields to improve the prompt.
+- The user asked to **stop the servers and test later** → stopped (ports 4000/5173 free; a leftover VS Code network-helper connection, PID 14983, was not a server).
+
+**Doc-sync audit** (user: "make sure we have logged everything in the md files", D-52). Checked every doc against the code and decisions; decisions D-1…D-82 have no numbering gaps, sessions 1–12 present, tracker current. Fixed:
+- **ADR statuses** (D-83): ADR-002, ADR-003, ADR-005, ADR-007 → Accepted.
+- **README:** status updated to Week 2 / Day 10 (upload + AI parsing work); added the API workspace scripts (`llm:smoke`, `parse:pdf`, `fixtures:pdfs`).
+- **Dev Guide §2/§3:** setup no longer says to set `ANTHROPIC_API_KEY` (Ollama default, `ollama pull llama3`, `llm:smoke`); `build` described correctly; added `npm run check`; `test:e2e`/`eval` marked *planned* (Days 21/22); workspace scripts listed.
+- **Tech Design:** §2 stack row (Claude in production + local Ollama in dev, OD-10), §6.2 tailor pipeline (structured output through `LlmClient`, not `zodOutputFormat`), §10 testing strategy (normalizer/LLM unit tests, real transports vs local fake APIs, contract suite, component tests, practices D-33 + clean-copy CI + `parse:pdf`), §11 observability (LLM, parse and startup log lines are implemented).
+- **CLAUDE.md:** describes the provider-neutral LLM layer; hard rules now say tests never call a real model (Claude **or** Ollama) and state the `src/llm/` boundary (D-69).
+- **PRD A2:** notes the local dev model reads extracted text only.
+- **Roadmap AI-2/AI-5, plan Days 14/22:** "real API" → the selected real provider (Ollama in dev; production provider via OD-10); AI-2 uses the neutral PDF part.
+
+**Exit check met?** 🟡 Pending: "uploading a real PDF in the browser lands on /review" needs the user's click-through; the user will test later (servers stopped). **Not committed** (D-71).
+**Next session:** `npm run dev` → the user's browser check → commit/push Day 10 when told → Day 11.
+
+### 2026-11-09: Session 13 (Day 10 exit check + Day 11: Review page)
+**Day:** 10 → 11
+**Done**
+- Session start: read the DEVLOG and the plan, gave the user a status summary (Day 10 built, uncommitted, waiting for the browser check).
+- Started the dev servers at the user's request (`npm run dev`; ports free, Ollama up with `llama3`, no `apps/api/.env` so the defaults apply: `LLM_PROVIDER=ollama`). API health ✅ directly and through the Vite proxy.
+- **Day 10 exit check ✅ (by the user, real browser):** uploaded a real 1-page PDF resume → landed on `/review` with the summary line.
+- [FE-4] **Review page** (D-84): `features/resume-view/ResumeView.tsx` (new) and `pages/ReviewPage.tsx` (replaces the Day 10 placeholder summary).
+- Tests: `pages/ReviewPage.test.tsx` (10): every string of the full fixture is on the page (ids are not), details sit under the right section, counts line, no warning when nothing is missing, resume links are not clickable, sparse fixture skips empty sections and has no dangling date dash, "We couldn't find…" warning, name-only resume, Continue → `/job` keeps the session, "Upload a different file" clears the session → `/`, no session → back to `/`. `UploadPage.test.tsx` hand-off test now checks the name heading on `/review`. Web 45 → **55**, total **301**.
+
+**The user's first real upload (counts only; no resume content is recorded here)**
+- Result on screen: 2 jobs, 3 education entries, 37 skills, read in 49.7 s.
+- Server log for the request: 200; one `llama3` call (parse-v1, attempt 1, stop reason `stop`, 1,352 input / 1,029 output tokens, 49,672 ms); 1 page; counts: experience 2, bullets 5, education 3, skills 37, projects 3, certifications 0; dropped entries 0; **the model missed the email and the normalizer recovered it from the PDF text** (`emailFromText: true`, D-76).
+- **Not yet checked against the actual resume** (the old page only showed the summary line): whether 5 bullets across 2 jobs and 0 certifications are right. The new review page makes this check possible.
+- 49.7 s is slow compared with the fixtures (7–20 s). Cause not confirmed → Known Issue #9.
+
+**Verified**
+- Deliberate break (D-33): hid certifications, removed the date filter, removed `reset()`, sent Continue to `/` → **5 tests failed**; restored → 55 green.
+- `npm run check` ✅ (0 lint warnings, 301 tests); web build ✅ (455 KB / 139 KB gzip).
+- The running Vite dev server serves the two new modules (200).
+- **Not verified yet:** the new review page in a real browser with the user's resume (the user's next step).
+
+**Discussed**
+- The user asked for the review page to list all the important details of the resume, and for this to go into the DEVLOG.
+
+**Decisions:** D-84.
+**Doc-sync audit (D-52):** plan (Day 10 exit check + tracker ✅; Day 11 tasks ticked, demo left open), Tech Design §6.4 (review page), README status. No schema or API change, so the API spec is unchanged. Known Issue #5 bundle size: 455 KB / 139 KB gzip.
+**Issues / blockers:** none blocking. Known Issue #9 logged (slow first parse).
+**Exit check met?** Day 10 ✅. Day 11 🟡: the review page is built; "the demo works on all the test PDFs" is still open (1 real PDF so far). **Not committed** (D-71).
+**Next session:** the user checks the review page against their resume → commit/push Days 10–11 when told → Day 11 demo with 3–5 PDFs → Day 12.
+
+### 2026-11-09: Session 13, part 2 (Day 11: compact review page + user additions)
+**Day:** 11 (same session)
+**Done**
+- User feedback on the first review page (D-84): it looks the same as a resume. Asked for a compact version where the user can also add things, with the backend and frontend changes needed.
+- [SHR] `packages/shared/src/resumeAdditions.ts` (new): `ResumeAdditionsSchema`, `RESUME_ADDITION_LIMITS`, `EMPTY_RESUME_ADDITIONS`, `applyResumeAdditions`, `hasResumeAdditions`, `resumeHasSkill`, `collectResumeIds`, `findDuplicateResumeIds`. `TailorRequestSchema`: duplicate ids rejected (D-86).
+- [FE-4] `features/resume-review/` (new): `ResumeSummary.tsx`, `InlineAdd.tsx`, `AddCertification.tsx`. `pages/ReviewPage.tsx` uses it (counts line and warning now use the merged resume; the warning says details can be added below). Session: `additions` + `setAdditions` (`state/sessionContext.ts`, `state/session.tsx`).
+- `features/resume-view/ResumeView.tsx` kept unchanged for Day 16, with its own tests now.
+- **Backend:** no `apps/api` code change was needed (stateless; the tailor route is Day 15). The backend-side change is the shared contract the API validates with.
+- Tests: shared `resumeAdditions.test.ts` (16: schema limits, merge rules, ids, immutability, determinism, tailor request accepts the merged resume and rejects duplicate ids); web `ReviewPage.test.tsx` (16: compact layout, folded text, every parsed detail still present, add/remove for phone, skills, bullet point, certification, duplicate and blank input, limits attribute, refresh restores, navigation), `ResumeView.test.tsx` (5), `session.test.tsx` (+3). Shared 53 → **69**, web 55 → **69**, total **331**.
+
+**Verified**
+- Deliberate break (D-33): removed the next-free-id loop, the "never overwrite" rule, the duplicate-skill check, bullet removal and the duplicate-id rejection → **8 tests failed** (6 shared, 2 web); restored → all green.
+- `npm run check` ✅ (0 lint warnings, 331 tests); builds ✅ (web 464 KB / 141 KB gzip).
+- The running Vite dev server serves the new and changed modules (200); the API restarted cleanly after the shared change (health ok).
+- **Not verified:** how the page looks and feels in a real browser (the user's next step).
+
+**Discussed**
+- What "add some things" covers was left open by the user; Claude chose add-only for missing contact fields, skills, bullet points on existing jobs and certifications, and parked editing/deleting and whole new entries (D-85). To be confirmed by the user after trying it.
+- The user asked for a list of next steps → written under Current Status.
+
+**Decisions:** D-85, D-86. ADR-014.
+**Doc-sync audit (D-52):** PRD (flow + FR-4: no longer "read-only"), roadmap FE-4, API spec §3 (unique ids, merged resume) and §6 (additions module), Tech Design §4 tree + §6.4 (session store, review page), ADR-014, plan (Day 11 items, notes on Days 12 and 15), README status, Parking Lot (2 items), Known Issue #5 (bundle size).
+**Issues / blockers:** none.
+**Exit check met?** Day 11 🟡: built and tested; the browser check and the 3–5 PDF demo are open. **Not committed** (D-71).
+**Next session:** see "Next steps" under Current Status.
+
+### 2026-11-14: Session 14 (Day 11 exit check: browser check, demo, push)
+**Day:** 11
+**Done**
+- Session start: read the DEVLOG and the local changes, gave the user a status summary; re-ran `npm run check` ✅ (331 tests).
+- Checked Ollama (0.40.16 up, `llama3` installed, not loaded) and started the dev servers at the user's request (`npm run dev`). API health ✅ directly and through the Vite proxy.
+- **Known Issue #9 settled (counts only):** the user uploaded the same real PDF twice: 45 s (model unloaded), then 37.5 s (warm). Log for the warm call: one `llama3` call, parse-v1, stop reason `stop`, 1,352 input / 1,029 output tokens, 37,517 ms; `ollama ps`: 100% GPU. Same counts as Session 13 (experience 2, bullets 5, education 3, skills 37, projects 3, certifications 0), `emailFromText: true` again. So it is generation speed (~27 tokens/s), not a cold start → accepted (D-87).
+- **Day 11 browser check ✅ (by the user):** add and remove work; additions survive a page reload.
+- **Parse of the real resume confirmed by the user** ("everything looks good"): the counts above are right.
+- **Demo ✅:** Claude uploaded every fixture PDF through the running app (the Vite proxy, real `llama3`):
+  - `resume-1page` 200 in 10.7 s (2 jobs, 1 education; headline found, no location); `resume-2page` 200 in 12.2 s (2 jobs, 1 education, 1 project, 1 certification; no headline); `resume-2column` 200 in 7.7 s (1 job, 1 education; no headline). Only which fields were filled was checked, not their text; the missing headline/location fit Known Issue #8.
+  - Rejections: `not-a-pdf` 415 `UNSUPPORTED_FILE_TYPE`, `seven-pages` 422 `PDF_TOO_MANY_PAGES`, `empty` 400 `FILE_MISSING`, `encrypted` 422 `PDF_ENCRYPTED`, `corrupt` 415 `UNSUPPORTED_FILE_TYPE` ("appears to be damaged"), `invoice` 422 `RESUME_NOT_DETECTED` (2.5 s).
+  - The uploads used up the parse rate limit (10 per hour, in memory): the 10th and 11th requests got 429 `RATE_LIMITED`, as designed. Reset by a watch-restart of the API (`touch` on a source file, no content change), then the last two files were uploaded.
+- No bugs found by the demo, so nothing to fix under "fix bugs and catch up".
+- Committed and pushed Days 10–11 at the user's request (D-71).
+
+**Discussed**
+- Add-only on the review page (D-85): the user tried it and raised no objection; editing/deleting stays in the Parking Lot. (Claude's reading of "everything looks good"; not stated by the user in so many words.)
+- The user asked for the list of Day 12 tasks.
+
+**Decisions:** D-87.
+**Doc-sync audit (D-52):** no code changed in this session. Plan (Day 11 ticked, tracker ✅), README status, DEVLOG (Current Status, Known Issue #9). Other docs unaffected.
+**Issues / blockers:** none.
+**Exit check met?** Day 11 ✅ ("the demo works on all the test PDFs"). **Milestone 1.2 complete.**
+**Next session:** Day 12, first task: write the guardrail tests with the "bad tailored output" fixtures.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

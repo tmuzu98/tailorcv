@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ResumeSchema } from "./resume.schema";
+import { findDuplicateResumeIds } from "./resumeAdditions";
 
 /** Tailoring contract (Tech Design §5.2, API spec §3). */
 
@@ -15,7 +16,20 @@ export const TailorOptionsSchema = z.object({
 
 /** Body of POST /api/v1/resumes/tailor */
 export const TailorRequestSchema = z.object({
-  resume: ResumeSchema,
+  /**
+   * The parsed resume, plus anything the user added on the review page (D-85). Because the
+   * client can now create ids, they must be unique: the guardrails match items by id.
+   * (The check lives here, not in ResumeSchema, which must stay plain for structured outputs.)
+   */
+  resume: ResumeSchema.superRefine((resume, ctx) => {
+    const duplicates = findDuplicateResumeIds(resume);
+    if (duplicates.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Resume item ids must be unique (duplicated: ${duplicates.slice(0, 5).join(", ")})`,
+      });
+    }
+  }),
   jobDescription: z
     .string()
     .trim()

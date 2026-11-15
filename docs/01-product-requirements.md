@@ -31,7 +31,7 @@ Job seekers are told to tailor their resume to every job they apply for, but doi
 ## 4. Core user flow (MVP)
 
 ```
-[Landing] → [Upload PDF resume] → [Review parsed resume (read-only in MVP)]
+[Landing] → [Upload PDF resume] → [Review a compact summary of the parsed resume + add missing details]
          → [Paste job description] → [Generate tailored resume]
          → [Preview + see what changed + keyword match] → [Download PDF]
 ```
@@ -45,7 +45,7 @@ Job seekers are told to tailor their resume to every job they apply for, but doi
 | FR-1 | User can upload **one** resume as a PDF (drag-and-drop or file picker) | Must |
 | FR-2 | System validates the file: PDF only, ≤ 5 MB, ≤ 5 pages, not encrypted | Must |
 | FR-3 | System extracts the resume into a **structured format** (contact, summary, experience, education, skills, projects, certifications) | Must |
-| FR-4 | User sees the parsed result so they can confirm it was read correctly | Must |
+| FR-4 | User sees the parsed result as a compact summary so they can confirm it was read correctly, and can **add** details the PDF lacks (missing contact fields, skills, bullet points for an existing job, certifications). The parsed content itself is not editable in the MVP | Must |
 | FR-5 | User can paste a job description into a text area (100–15,000 characters) | Must |
 | FR-6 | System generates a tailored resume from the parsed resume and the JD | Must |
 | FR-7 | Tailored resume keeps all factual fields (company, title, dates, degree, institution) **exactly** as in the original | Must |
@@ -114,7 +114,7 @@ Job seekers are told to tailor their resume to every job they apply for, but doi
 | # | Item | Status |
 |---|---|---|
 | A1 | Users mostly have English-language, text-based PDFs | Assumption |
-| A2 | Claude reads PDFs natively, including scanned or image PDFs, so we don't need a separate OCR step | Decided (see ADR-003) |
+| A2 | Claude reads PDFs natively, including scanned or image PDFs, so we don't need a separate OCR step | Decided (see ADR-003). Note: the local development model (Ollama, ADR-012) reads extracted text only, so scanned PDFs and layout need the production provider |
 | Q1 | Product name and branding | Open |
 | Q2 | Hosting budget and preferred cloud | Open; default plan uses Vercel + Render (see Tech Design §9) |
 | Q3 | Should MVP offer optional anonymous analytics? | Open |

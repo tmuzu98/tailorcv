@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { sampleResumeSwe, sampleTailorResultSweFrontend } from "@tailorcv/shared/fixtures";
-import type { ParseResponse, TailorResponse } from "@tailorcv/shared";
+import { EMPTY_RESUME_ADDITIONS, type ParseResponse, type TailorResponse } from "@tailorcv/shared";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "../app/AppProviders";
@@ -66,6 +66,42 @@ describe("session store", () => {
     expect(api().tailorResult).not.toBeNull();
     act(() => api().setParsed(parsed));
     expect(api().tailorResult).toBeNull();
+  });
+
+  it("stores additions, restores them after a reload, and a new resume clears them", () => {
+    const first = renderSession();
+    const additions = { ...EMPTY_RESUME_ADDITIONS, skills: ["Docker"] };
+    act(() => first.api().setParsed(parsed));
+    act(() => first.api().setAdditions(additions));
+    first.unmount();
+
+    const second = renderSession();
+    expect(second.api().additions).toEqual(additions);
+    act(() => second.api().setParsed(parsed));
+    expect(second.api().additions).toEqual(EMPTY_RESUME_ADDITIONS);
+  });
+
+  it("changing the additions clears the tailoring result", () => {
+    const { api } = renderSession();
+    act(() => {
+      api().setParsed(parsed);
+      api().setTailorResult(tailored);
+    });
+    act(() => api().setAdditions({ ...EMPTY_RESUME_ADDITIONS, skills: ["Docker"] }));
+    expect(api().tailorResult).toBeNull();
+  });
+
+  it("loads a session saved before additions existed, and drops invalid additions", () => {
+    const old = { parsed, jobDescription: "", tailorResult: null };
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(old));
+    const first = renderSession();
+    expect(first.api().parsed).not.toBeNull();
+    expect(first.api().additions).toEqual(EMPTY_RESUME_ADDITIONS);
+    first.unmount();
+
+    const bad = { ...old, additions: { ...EMPTY_RESUME_ADDITIONS, skills: ["x".repeat(500)] } };
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(bad));
+    expect(renderSession().api().parsed).toBeNull();
   });
 
   it("reset() clears memory and storage", () => {

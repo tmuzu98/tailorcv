@@ -13,13 +13,13 @@ Format: **Context → Decision → Consequences** · Status: Proposed / Accepted
 **Consequences:** Type errors at compile time when the contract drifts, and better editor autocomplete. Small build-config overhead. Plain JS is still possible if the team prefers it, at the cost of losing the compile-time contract checks.
 
 ## ADR-002: Express 5 for the API
-**Status:** Proposed
+**Status:** Accepted (2026-11-03, Day 2: Express 5.3 installed and in use, D-20)
 **Context:** The options were Express, Fastify, NestJS, and Hono. The MVP has a handful of endpoints and multipart upload.
 **Decision:** Express 5. It is familiar, handles async errors natively, and multer is a mature upload option.
 **Consequences:** Less built-in structure than NestJS, so layering is enforced by convention (routes/controllers/services). Fastify would be faster, but speed isn't the bottleneck here: AI latency is.
 
 ## ADR-003: Send the PDF directly to Claude instead of extracting text locally
-**Status:** Proposed
+**Status:** Accepted (2026-11-06, Days 7–9: `AnthropicLlmClient` sends a native base64 `document` block, verified end to end against a fake API). In local development the Ollama client extracts text instead (ADR-012)
 **Context:** Local text extraction (pdf-parse/pdfjs) loses layout. Two-column resumes get scrambled, and scanned PDFs return no text, which would require a separate OCR step.
 **Decision:** Send the PDF as a base64 `document` block to Claude with a structured-output schema. Use `unpdf` locally only for cheap validation (page count, encryption).
 **Consequences:** Much more robust parsing, and scanned PDFs work. Costs more tokens per parse than sending plain text, which the 5-page limit offsets. Parse results are reused across many tailor calls.
@@ -31,7 +31,7 @@ Format: **Context → Decision → Consequences** · Status: Proposed / Accepted
 **Consequences:** No server cost for export, and the output is a real text PDF that ATS software can read. The HTML preview and PDF template are separate components that must be kept visually aligned. It can move to the server later (react-pdf runs in Node) if needed.
 
 ## ADR-005: Two-step API (parse → tailor) instead of a single endpoint
-**Status:** Proposed
+**Status:** Accepted (2026-11-06, Day 9: `POST /resumes/parse` live; `/resumes/tailor` follows on Day 15)
 **Context:** A single "upload + JD → result" call is simpler, but it is slow, can't be reviewed partway through, and repeats parsing for every JD.
 **Decision:** Separate `/resumes/parse` and `/resumes/tailor` endpoints. The client holds the parsed resume.
 **Consequences:** Better UX and lower cost for repeat tailoring. Prepares for saved base resumes in Phase 3. The client must send the resume JSON on each tailor call, which is fine at ≤ 200 KB.
@@ -43,7 +43,7 @@ Format: **Context → Decision → Consequences** · Status: Proposed / Accepted
 **Consequences:** Some valid rewordings may be flagged as false positives (shown as warnings, not silently dropped). This adds a small amount of server code, and the trust it builds justifies that.
 
 ## ADR-007: Stateless MVP (no database, no auth)
-**Status:** Proposed
+**Status:** Accepted (2026-11-06, Day 9: no database or auth; uploads stay in memory; the browser keeps the session in sessionStorage)
 **Context:** Persistence adds auth, privacy obligations, and infrastructure.
 **Decision:** The MVP keeps everything in client memory or sessionStorage. The server persists nothing.
 **Consequences:** Fastest path to launch and the simplest privacy story. Users lose their work if they close the tab. Phase 3 adds Postgres + auth.
@@ -83,3 +83,9 @@ Format: **Context → Decision → Consequences** · Status: Proposed / Accepted
 **Context:** We develop on local Ollama and plan to deploy on a hosted provider (ADR-012, OD-10). The switch must cost no code changes. An audit found one leak: `LlmContent` was typed with the Claude SDK's content blocks, so services would have built Claude-shaped requests and the Ollama client had to understand Claude's format. Nothing prevented new leaks, and nothing proved the clients behave the same.
 **Decision:** (1) `llm/LlmClient.ts` holds provider-neutral types only: content is a string or `{ type: "text" }` / `{ type: "pdf", data }` parts, and each client translates them (Claude: native base64 `document` block before the text; Ollama: extracted text). (2) ESLint `no-restricted-imports` forbids `@anthropic-ai/sdk` (and `openai`/`ollama` SDKs) and concrete client modules everywhere except `apps/api/src/llm/` and tests. (3) `tests/contract/llmClient.contract.test.ts` runs 10 scenarios (valid, retry, give-up, truncation, provider failure, misconfiguration, timeout, unreachable, PDF content, no content in logs) against every client via local fake APIs and requires identical outcomes.
 **Consequences:** Switching providers is config only (`LLM_PROVIDER`); adding one is a new class plus a contract harness. Provider-specific strengths (Claude's native PDF layout, caching, fallback) stay inside each client. A capability only one provider has (e.g. images) must be added to the neutral types deliberately, with a defined behaviour for providers that lack it.
+
+## ADR-014: User additions are kept apart from the parsed resume and merged on the client
+**Status:** Accepted (2026-11-09, Day 11)
+**Context:** The review page now lets the user add details the PDF lacks (D-85). We had to decide where that data lives and how it reaches tailoring, without breaking the stateless design (ADR-007), the two-step API (ADR-005) or the honesty guardrails (ADR-006), which match items by id and treat the submitted resume as the source of truth.
+**Decision:** The parsed resume is never edited in place. Additions are a separate, validated value (`ResumeAdditionsSchema`: blank contact fields, skills, bullets for existing jobs, certifications, with length and count limits) stored in the browser session. A pure, deterministic function in `packages/shared`, `applyResumeAdditions(resume, additions)`, produces an ordinary `Resume` (next free ids, skills in an "Additional skills" group, never overwriting what the PDF said). The web app sends that merged resume in the existing tailor request: no new endpoint and no new request field. Because ids can now be created on the client, `TailorRequestSchema` rejects duplicate ids (the check sits on the request, not on `ResumeSchema`, which must stay plain for structured outputs).
+**Consequences:** The API stays stateless and its contract barely changes. "What the PDF said" and "what the user told us" stay distinguishable in the UI, and every addition is removable. Guardrails need no special case: a user-added skill is part of the submitted resume, so it is allowed, while the AI still may not add anything. The server cannot tell user additions from parsed content, which is acceptable because both are the user's own data; if we later want to show "added by you" in the result or the PDF, the additions must be sent separately. Editing or deleting parsed content is still out of scope (Parking Lot).

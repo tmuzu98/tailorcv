@@ -31,7 +31,7 @@
 | Backend framework | **Express 5** | Widely known, async error handling built in, large ecosystem (ADR-002) |
 | File upload | **multer** (memory storage) | Files never touch disk |
 | PDF validation | **unpdf** | Page count, encryption check, and a cheap text sniff before calling the AI |
-| AI / LLM | **Claude API** via `@anthropic-ai/sdk`, model `claude-opus-5-5` | Reads PDFs natively, structured JSON output, strong writing quality (ADR-003) |
+| AI / LLM | **Claude API** via `@anthropic-ai/sdk`, model `claude-opus-5-5` (production, final provider confirmed by Day 24: OD-10) · **local Ollama** (`llama3`) in development | Claude reads PDFs natively, structured JSON output, strong writing quality (ADR-003). Ollama is free and private for local work (ADR-012). One switch: `LLM_PROVIDER` |
 | Validation | **zod** (in `packages/shared`) | One source of truth for the schemas |
 | Security middleware | helmet, cors, express-rate-limit | OWASP basics |
 | Logging | **pino** | Structured JSON logs, with redaction |
@@ -92,12 +92,13 @@ resumeParser/
 │   │   │   ├── app/           # router, providers, layout
 │   │   │   ├── pages/         # Upload, Review, JobDescription, Result
 │   │   │   ├── features/
-│   │   │   │   ├── upload/        # Dropzone, file validation
-│   │   │   │   ├── resume-view/   # Read-only HTML view of the resume JSON
+│   │   │   │   ├── upload/        # Dropzone, fileChecks, useParseResume, ParseProgress (Day 10)
+│   │   │   │   ├── resume-review/ # ResumeSummary (compact review + add), InlineAdd, AddCertification (Day 11)
+│   │   │   │   ├── resume-view/   # Read-only HTML view of the resume JSON (tailored preview, Day 16)
 │   │   │   │   ├── tailor/        # JD form, change list, keyword chips
 │   │   │   │   └── pdf-export/    # @react-pdf templates + download button
 │   │   │   ├── api/           # client.ts (apiRequest, ApiError), resumes.ts, errorMessages.ts, health.ts
-│   │   │   ├── components/ui/ # Button, Card, Spinner, Alert...
+│   │   │   ├── components/ui/ # Button, Card, Alert, Spinner (Day 10)
 │   │   │   └── state/         # sessionContext.ts + session.tsx (React context, sessionStorage)
 │   │   └── tests/
 │   └── api/                   # Express backend
@@ -234,7 +235,8 @@ TailorResult = {
 2. LLM call #2 (jobTailorService), one call that does both:
      a. Analyze JD → title, seniority, top requirements, keywords
      b. Produce tailored Resume + changes[] honoring the lock rules
-   Structured output: zodOutputFormat(TailorLlmOutputSchema)
+   Structured output: TailorLlmOutputSchema through LlmClient.generateStructured (Claude: JSON
+   schema from betaZodOutputFormat; Ollama: inlined JSON schema), validated by us (ADR-011)
 3. guardrailService (deterministic, no AI):
      - Locked fields equal original?  → if not, restore original value + add warning
      - Every tailored skill exists in original skills/bullets/projects text? → else remove + warn
@@ -272,11 +274,13 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 ### 6.4 Frontend state & flow
 
-- **Session store** (Day 9, React context, D-73): `{ parsed: ParseResponse | null, jobDescription, tailorResult: TailorResponse | null }` in `src/state/` (`sessionContext.ts`: context, types, storage helpers, `useSession`; `session.tsx`: `<SessionProvider>`). Mirrored to `sessionStorage` (`tailorcv.session.v1`) in try/catch, validated with the shared schemas on load (corrupt/old data is dropped). A new resume clears the old tailoring result. Never sent anywhere.
+- **Session store** (Day 9, React context, D-73): `{ parsed: ParseResponse | null, additions: ResumeAdditions, jobDescription, tailorResult: TailorResponse | null }` in `src/state/` (`sessionContext.ts`: context, types, storage helpers, `useSession`; `session.tsx`: `<SessionProvider>`). Mirrored to `sessionStorage` (`tailorcv.session.v1`) in try/catch, validated with the shared schemas on load (corrupt/old data is dropped). A new resume clears the old additions and tailoring result; changing the additions clears the tailoring result. A session stored before `additions` existed loads with none. Never sent anywhere.
 - **API layer** (Day 9, `src/api/`): `apiRequest(path, { schema, … })` validates success bodies with the shared schemas and throws one `ApiError` (`code`, `status`, `requestId`, `details`) for server errors and for browser-side `NETWORK_ERROR` / `BAD_RESPONSE` / `ABORTED`. `toFriendlyError()` (`errorMessages.ts`) maps every code to a title, message and next action (`retry` / `choose-file` / `edit-input` / `wait`), typed so a new code without copy fails to compile. TanStack Query provides mutation state; mutations never auto-retry.
 - **Routes**: `/` (upload) → `/review` → `/job` → `/result`. Route guards (`RequireSession`) send the user back to the first step whose data is missing (`/review`, `/job` need a parsed resume; `/result` needs a tailoring result).
-- **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE).
+- **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE). Upload (Day 10): messages change at 8 s and 25 s (local models can take up to a minute), elapsed seconds, and a Cancel that aborts the request (the API then cancels the AI call).
+- **Upload page** (Day 10): choosing or dropping a file runs instant client checks with the shared `UPLOAD_LIMITS` (PDF by type or `.pdf` name, not empty, ≤ 5 MB) and then uploads right away; errors show `toFriendlyError()` copy, a "Try again" button only for retryable codes, and the request id as a reference; success stores the `ParseResponse` and navigates to `/review`.
 - **PDF export**: `<ResumeDocument resume={tailoredResume} template="classic" />` rendered with `@react-pdf/renderer`'s `pdf().toBlob()` and downloaded as `FirstName_LastName_<Company>.pdf`.
+- **Review page** (Day 11, D-84 → D-85): `features/resume-review/ResumeSummary.tsx` shows a **compact summary** of the parsed resume, not a resume look-alike: a Contact grid, then one line per job, school, project and certification (title · detail, dates), skills as one line per category, and the long text (bullet points, education details, the profile summary) folded into `<details>`. Section headings carry counts. The user can **add** what the PDF lacks: a missing headline/email/phone/location, skills (duplicates refused, case-insensitive), bullet points on an existing job, and certifications; each addition is marked "Added by you" and can be removed. The parsed resume is never edited: additions are kept separately in the session (`ResumeAdditions`) and merged with the shared, pure `applyResumeAdditions()` (fills only blank contact fields, appends an "Additional skills" group, gives new bullets/certifications the next free id). The page's counts line and "We couldn't find…" warning use the merged resume. **The tailor request (Day 15) must send the merged resume**; `TailorRequestSchema` rejects duplicate ids. Every value is plain text (resume links are never clickable). "Looks good, continue" → `/job`; "Upload a different file" clears the session → `/`. `features/resume-view/ResumeView.tsx` (full read-only resume) is kept for the tailored preview (Day 16).
 - **HTML preview** and **PDF template** share one layout spec (section order, fonts) so they look the same.
 
 ## 7. Security & privacy
@@ -332,17 +336,19 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 
 | Level | Tool | What |
 |---|---|---|
-| Unit | Vitest | Schemas, guardrail rules, keyword scoring, id assignment, error mapping |
-| Integration (API) | Vitest + Supertest | Routes with a **mocked LLM client** (deterministic fixtures) |
-| Component | React Testing Library | Dropzone validation, JD form, change list, error states |
+| Unit | Vitest | Schemas, guardrail rules, keyword scoring, id assignment, error mapping, resume normalizer, LLM clients (stubbed SDK) |
+| Integration (API) | Vitest + Supertest | Routes with `FakeLlmClient` (deterministic answers/errors via `buildTestApp(env, { llm })`); every error code per route |
+| LLM clients (real transport) | Vitest + local fake HTTP APIs | The real Anthropic SDK and the Ollama client against local fakes of their APIs (headers, retries, timeouts, aborts) |
+| LLM contract | Vitest (`tests/contract/llmClient.contract.test.ts`) | The same scenarios against every provider client, identical outcomes required (ADR-013) |
+| Component | React Testing Library | Upload page (checks, loading, cancel, errors, retry, hand-off), session store + route guards, API client; later JD form, change list |
 | E2E | Playwright | Upload fixture PDF → tailor → download (LLM mocked by an API test mode) |
 | AI quality evals | Script + fixture set (Phase 5, started in MVP) | 10–20 synthetic resumes × JDs. Check for fabrication, locked fields, keyword coverage |
 
-The LLM is put behind an `LlmClient` interface so tests can inject a fake. CI never calls the real API.
+The LLM is put behind an `LlmClient` interface so tests can inject a fake. CI never calls a real model (Claude or Ollama). Practices: after writing tests, break the code once on purpose to prove they fail (D-33); before pushing, simulate CI in a clean copy; parse quality is measured with `npm run parse:pdf` (local, real model) and recorded in the DEVLOG.
 
 ## 11. Observability (MVP → later)
 
-- MVP: pino JSON logs. Access log (Day 5): `req.id` (= `X-Request-Id`), `req.method`, `req.url` (path only), `res.statusCode`, `responseTime` (ms). 4xx → warn, 5xx → error, `/health` not logged. LLM token usage and prompt version are added on Day 7–8.
+- MVP: pino JSON logs. Access log (Day 5): `req.id` (= `X-Request-Id`), `req.method`, `req.url` (path only), `res.statusCode`, `responseTime` (ms). 4xx → warn, 5xx → error, `/health` not logged. LLM (Day 7): one `llm call completed` line per call (provider, prompt version, effort, model/served-by, attempt, stop reason, token usage, duration) plus error/timeout lines with status and upstream request id. Parse (Day 8): one `resume parsed` line with counts and normalizer stats. Startup: `LLM provider: …`. Never prompts, documents or answers (tested).
 - Later: OpenTelemetry traces, a cost dashboard, Sentry for frontend and backend errors.
 
 ## 12. Evolution path (how later phases fit without a rewrite)

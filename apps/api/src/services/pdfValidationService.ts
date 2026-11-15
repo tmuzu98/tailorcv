@@ -1,7 +1,9 @@
+import { UPLOAD_LIMITS } from "@tailorcv/shared";
 import { getDocumentProxy } from "unpdf";
 import { AppError } from "../lib/errors";
 
-export const MAX_PDF_PAGES = 5;
+/** From @tailorcv/shared so the web app shows the same limit. */
+export const MAX_PDF_PAGES = UPLOAD_LIMITS.maxPages;
 
 /** PDF readers accept the `%PDF-` header anywhere in the first 1024 bytes (PDF 32000-1, Annex H). */
 const MAGIC = Buffer.from("%PDF-", "latin1");

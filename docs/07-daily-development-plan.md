@@ -218,13 +218,14 @@
 **Goal:** the user can upload a PDF from the UI.
 **Tasks:** FE-1
 
-- [ ] Basic UI primitives: Button, Card, Alert, Spinner (Tailwind)
-- [ ] App layout: header, container, footer with a privacy note
-- [ ] Upload page: drag-and-drop zone + file picker, client-side checks (type, 5 MB)
-- [ ] TanStack Query `useParseResume` mutation, loading state ("Reading your resume…")
-- [ ] Error display that uses the friendly messages, plus a retry
-- [ ] On success → store the parsed resume → navigate to `/review`
-- [ ] Component tests: rejects a non-PDF, shows the loading state, shows an API error
+- [x] Basic UI primitives: Button, Card, Alert, Spinner (Tailwind) in `components/ui/`
+- [x] App layout: header, container, footer with a privacy note (existing Day 2 layout kept; polish on Day 20)
+- [x] Upload page: drag-and-drop zone + file picker, client-side checks (type, 5 MB, empty) using the shared `UPLOAD_LIMITS`
+- [x] TanStack Query `useParseResume` mutation, loading state ("Reading your resume…" → time-based messages for long local-AI waits, elapsed seconds, Cancel)
+- [x] Error display that uses the friendly messages, plus a retry
+- [x] On success → store the parsed resume → navigate to `/review`
+- [x] Component tests: rejects a non-PDF, shows the loading state, shows an API error (+ size/empty, blank MIME type, success hand-off, multipart, drag and drop, cancel, retry, network error)
+- [x] **Exit check by the user in a real browser** (2026-11-09, DEVLOG Session 13: a real 1-page PDF landed on `/review`)
 
 **Deliverable:** working upload page.
 **Exit check:** uploading a real PDF in the browser lands on `/review`.
@@ -235,12 +236,14 @@
 **Goal:** the user sees the parsed resume clearly. First end-to-end demo.
 **Tasks:** FE-4 · buffer
 
-- [ ] `features/resume-view/ResumeView.tsx`: renders every section of `Resume` (reused later for the tailored preview)
-- [ ] Review page: ResumeView + "Looks good → Continue" + "Upload a different file"
-- [ ] Handle empty sections gracefully
-- [ ] Component test with the fixture resume
-- [ ] **Demo:** upload 3–5 different PDFs and record any parsing issues in DEVLOG
-- [ ] Fix bugs and catch up on any slipped tasks
+- [x] `features/resume-view/ResumeView.tsx`: renders every section of `Resume` (reused later for the tailored preview)
+- [x] Review page: ~~ResumeView~~ compact `ResumeSummary` (D-85) + "Looks good, continue" + "Upload a different file" (+ counts line and a "We couldn't find…" warning, D-84)
+- [x] *(Added, D-85)* The user can add missing contact details, skills, bullet points and certifications; `ResumeAdditions` + `applyResumeAdditions()` in `packages/shared`; additions in the session; tailor request rejects duplicate ids (ADR-014)
+- [x] Handle empty sections gracefully (empty sections and blank optional fields are skipped)
+- [x] Component tests with the fixture resumes (`pages/ReviewPage.test.tsx` 16, `features/resume-view/ResumeView.test.tsx` 5, `resumeAdditions.test.ts` 16 in shared)
+- [x] **User checks the compact review page in a real browser** (add + remove a skill, a bullet point, a certification; refresh keeps them) _(passed 2026-11-14)_
+- [x] **Demo:** upload 3–5 different PDFs and record any parsing issues in DEVLOG _(1 real PDF, confirmed correct by the user, + the 3 synthetic resume fixtures through the running app, 2026-11-14)_
+- [x] Fix bugs and catch up on any slipped tasks _(the demo found no bugs, 2026-11-14)_
 
 **Deliverable:** ✅ **Milestone 1.2 complete.** Upload → structured resume.
 **Exit check:** the demo works on all the test PDFs.
@@ -255,7 +258,7 @@
 
 - [ ] Write the tests first, with handcrafted "bad tailored output" fixtures:
   - [ ] changed company / title / date / degree → restored + warning
-  - [ ] new skill not found in the original text → removed + warning
+  - [ ] new skill not found in the original text → removed + warning _("original" = the resume in the tailor request, which already includes the user's additions, ADR-014; add a test that a user-added skill survives)_
   - [ ] new experience / education / cert entry → dropped + warning
   - [ ] more bullets than the original → trimmed + warning
   - [ ] valid rewording → passes untouched
@@ -286,7 +289,7 @@
 **Tasks:** AI-3 (part 2)
 
 - [ ] `services/jobTailorService.ts`: LLM call → guardrails → keyword analysis → `TailorResult`
-- [ ] Run the real API on 2 resumes × 3 JDs. Review the results together
+- [ ] Run the selected real provider (local Ollama, D-68; plus the production provider once OD-10 is resolved) on 2 resumes × 3 JDs. Review the results together
 - [ ] Iterate on the prompt (wording, emphasis, summary rewrite, ordering). Record each iteration in DEVLOG
 - [ ] Tune effort (`medium` vs `low`): compare quality and latency, record the numbers
 - [ ] Unit tests with the fake LLM
@@ -303,7 +306,7 @@
 - [ ] `POST /api/v1/resumes/tailor` route + controller + zod body validation
 - [ ] Integration tests: happy path, validation errors, AI errors
 - [ ] FE Job Description page: textarea, live character counter (100–15,000), validation messages
-- [ ] `useTailorResume` mutation
+- [ ] `useTailorResume` mutation. **Send `applyResumeAdditions(parsed.resume, additions)` as `resume`, not `parsed.resume`** (D-85)
 - [ ] `StepProgress` component ("Analyzing job description…" → "Tailoring your resume…" → "Checking accuracy…"), time-based in MVP
 - [ ] On success → store the result → navigate to `/result`
 
@@ -408,7 +411,7 @@
 **Goal:** a measured answer to "is the AI honest and good enough to launch?"
 **Tasks:** AI-5
 
-- [ ] `scripts/eval.ts`: runs N synthetic resume × JD pairs against the real API
+- [ ] `scripts/eval.ts`: runs N synthetic resume × JD pairs against the selected real provider (`LLM_PROVIDER`; final numbers on the production provider, OD-10)
 - [ ] Reports per run: guardrail warnings, locked-field diffs (should be 0 even before guardrails), keyword score before → after, latency, tokens/cost
 - [ ] Run the eval on 10 pairs and save the report in `docs/evals/2026-xx-xx.md`
 - [ ] Fix the prompt if there are any fabrications or weak outputs, then re-run
@@ -483,8 +486,8 @@
 | 7 | LLM client | ✅ (smoke green on local Ollama; real Claude call deferred, OD-10) |
 | 8 | AI resume parsing | ✅ |
 | 9 | Parse endpoint + FE plumbing | ✅ |
-| 10 | Upload page | ⬜ |
-| 11 | Review page 🛟 → **M1.2** | ⬜ |
+| 10 | Upload page | ✅ |
+| 11 | Review page 🛟 → **M1.2** | ✅ |
 | 12 | Guardrail service | ⬜ |
 | 13 | Keyword service + prompt draft | ⬜ |
 | 14 | Tailor service + prompt iteration | ⬜ |

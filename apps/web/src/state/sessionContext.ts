@@ -1,7 +1,10 @@
 import {
+  EMPTY_RESUME_ADDITIONS,
   ParseResponseSchema,
+  ResumeAdditionsSchema,
   TailorResponseSchema,
   type ParseResponse,
+  type ResumeAdditions,
   type TailorResponse,
 } from "@tailorcv/shared";
 import { createContext, useContext } from "react";
@@ -20,16 +23,25 @@ export const SESSION_STORAGE_KEY = "tailorcv.session.v1";
 
 const StoredSessionSchema = z.object({
   parsed: ParseResponseSchema.nullable(),
+  /** What the user added on the review page (D-85). Sessions saved before it existed have none. */
+  additions: ResumeAdditionsSchema.default(EMPTY_RESUME_ADDITIONS),
   jobDescription: z.string(),
   tailorResult: TailorResponseSchema.nullable(),
 });
 export type SessionData = z.infer<typeof StoredSessionSchema>;
 
-export const EMPTY_SESSION: SessionData = { parsed: null, jobDescription: "", tailorResult: null };
+export const EMPTY_SESSION: SessionData = {
+  parsed: null,
+  additions: EMPTY_RESUME_ADDITIONS,
+  jobDescription: "",
+  tailorResult: null,
+};
 
 export interface SessionValue extends SessionData {
-  /** A new resume clears the old tailoring result (it belonged to the previous resume). */
+  /** A new resume clears the old additions and tailoring result (they belonged to the old one). */
   setParsed: (parsed: ParseResponse) => void;
+  /** Changing the additions clears the tailoring result: it was made from the previous content. */
+  setAdditions: (additions: ResumeAdditions) => void;
   setJobDescription: (text: string) => void;
   setTailorResult: (result: TailorResponse) => void;
   reset: () => void;

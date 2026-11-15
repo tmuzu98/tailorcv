@@ -66,7 +66,7 @@ Tailor a parsed resume to a job description.
 **Request** (`application/json`, ≤ 200 KB)
 ```json
 {
-  "resume": { "...": "Resume object exactly as returned by /parse" },
+  "resume": { "...": "Resume object from /parse, plus anything the user added on the review page" },
   "jobDescription": "We are hiring a Senior Frontend Engineer ...",
   "options": { "tone": "professional" }
 }
@@ -74,7 +74,7 @@ Tailor a parsed resume to a job description.
 
 | Field | Rules |
 |---|---|
-| `resume` | must validate against `ResumeSchema` |
+| `resume` | must validate against `ResumeSchema`; **all item ids must be unique** across the resume (otherwise `400 VALIDATION_ERROR`). It is the `/parse` result merged with the user's additions by `applyResumeAdditions()` in the web app (D-85): the server treats this merged resume as the source of truth for the guardrails |
 | `jobDescription` | string, 100–15,000 chars |
 | `options.tone` | optional · `"professional" \| "concise" \| "impactful"` · default `"professional"` (Phase 2 UI) |
 
@@ -136,7 +136,8 @@ Note: in the example, "used by 200+ internal users" is only allowed if the origi
 
 - The path is versioned (`/api/v1`). Breaking changes mean a new `/api/v2`.
 - `packages/shared` holds the request and response types, so the frontend and backend can't drift apart without a TypeScript error.
-- Source of truth in code: `ResumeSchema`, `TailorRequestSchema`, `TailorResultSchema` (+ `TailorResponseSchema` with `meta`), `ParseResponseSchema`, `ApiErrorResponseSchema`, `ERROR_CODES` in `packages/shared/src`. Unknown fields in requests are **stripped**, not rejected.
+- Source of truth in code: `ResumeSchema`, `TailorRequestSchema`, `TailorResultSchema` (+ `TailorResponseSchema` with `meta`), `ParseResponseSchema`, `ApiErrorResponseSchema`, `ERROR_CODES`, and the upload limits `UPLOAD_LIMITS` (5 MB, 5 pages; used by the API to enforce and by the web app to pre-check) in `packages/shared/src`. Unknown fields in requests are **stripped**, not rejected.
+- User additions (D-85) are **not a new endpoint or request field**: `ResumeAdditionsSchema`, `RESUME_ADDITION_LIMITS` (skill ≤ 60 chars, bullet ≤ 500, other fields ≤ 200; up to 50 skills, 50 bullets, 20 certifications) and `applyResumeAdditions(resume, additions)` live in `packages/shared/src/resumeAdditions.ts`. The web app keeps the additions in its session and sends the merged `Resume` in the tailor request.
 
 ## 7. Planned endpoints (later phases, not built in MVP)
 
