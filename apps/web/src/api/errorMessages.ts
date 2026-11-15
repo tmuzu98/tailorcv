@@ -104,7 +104,25 @@ const USE_SERVER_MESSAGE = new Set<ApiErrorCode>(["PDF_TOO_MANY_PAGES"]);
 
 function waitText(seconds: number): string {
   if (seconds < 90) return `${Math.max(1, Math.round(seconds))} seconds`;
-  return `${Math.ceil(seconds / 60)} minutes`;
+  if (seconds < 90 * 60) return `${Math.ceil(seconds / 60)} minutes`;
+  return `${Math.ceil(seconds / 3600)} hours`;
+}
+
+/** Fields the user fills in themselves; a server message about one of them is worth showing. */
+const USER_FIELDS = new Set(["jobDescription"]);
+
+/** The server's message for a user-entered field, from `details.fields` (API spec §3). */
+function fieldMessage(details: Record<string, unknown> | undefined): string | undefined {
+  const fields: unknown = details?.fields;
+  if (!Array.isArray(fields)) return undefined;
+  for (const field of fields as unknown[]) {
+    if (typeof field !== "object" || field === null) continue;
+    const { path, message } = field as { path?: unknown; message?: unknown };
+    if (typeof path === "string" && USER_FIELDS.has(path) && typeof message === "string") {
+      return `${message}.`;
+    }
+  }
+  return undefined;
 }
 
 /** Turns anything thrown by an API call into copy the UI can show. */
@@ -116,5 +134,6 @@ export function toFriendlyError(err: unknown): FriendlyError {
   if (err.code === "RATE_LIMITED" && typeof retryAfter === "number") {
     message = `Please try again in about ${waitText(retryAfter)}.`;
   }
+  if (err.code === "VALIDATION_ERROR") message = fieldMessage(err.details) ?? message;
   return { ...base, message, ...(err.requestId && { requestId: err.requestId }) };
 }

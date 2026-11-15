@@ -3,8 +3,10 @@ import {
   JOB_DESCRIPTION_MAX_CHARS,
   JOB_DESCRIPTION_MIN_CHARS,
   KeywordAnalysisSchema,
+  RESUME_MAX_TEXT_CHARS,
   TailorRequestSchema,
   TailorResultSchema,
+  resumeTextLength,
 } from "./tailor.schema";
 import { LOCKED_FIELDS } from "./resume.schema";
 import { sampleJobDescriptions, sampleResumeSwe, sampleTailorResultSweFrontend } from "./fixtures";
@@ -54,6 +56,34 @@ describe("TailorRequestSchema", () => {
 });
 
 describe("TailorResultSchema", () => {
+  it(`rejects a resume with more than ${RESUME_MAX_TEXT_CHARS} characters of text, all fields together`, () => {
+    const [first, ...rest] = sampleResumeSwe.experience;
+    const padded = (chars: number) => ({
+      ...sampleResumeSwe,
+      experience: [{ ...first!, bullets: [{ id: "exp_1_pad", text: "x".repeat(chars) }] }, ...rest],
+    });
+    const room = RESUME_MAX_TEXT_CHARS - resumeTextLength(padded(0));
+    expect(
+      TailorRequestSchema.safeParse({
+        resume: padded(room),
+        jobDescription: sampleJobDescriptions.frontendEngineer,
+      }).success,
+    ).toBe(true);
+    const result = TailorRequestSchema.safeParse({
+      resume: padded(room + 1),
+      jobDescription: sampleJobDescriptions.frontendEngineer,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]).toMatchObject({
+      path: ["resume"],
+      message: `Resume is too long: at most ${RESUME_MAX_TEXT_CHARS} characters of text`,
+    });
+  });
+
+  it("resumeTextLength adds up every text value, however deeply nested", () => {
+    expect(resumeTextLength({ a: "ab", b: ["c", { d: "def", e: 5, f: null }] })).toBe(6);
+  });
+
   it("accepts the sample tailor result fixture", () => {
     expect(TailorResultSchema.safeParse(sampleTailorResultSweFrontend).success).toBe(true);
   });

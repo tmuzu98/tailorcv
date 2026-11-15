@@ -9,7 +9,7 @@ import {
   buildTailorContent,
 } from "../llm/prompts/tailor.v2";
 import { applyGuardrails } from "./guardrailService";
-import { analyzeKeywords } from "./keywordService";
+import { analyzeKeywords, keywordsFoundIn } from "./keywordService";
 import { applyTailorEdits, describeChanges } from "./tailorEdits";
 
 /** Tech design §6.3: tailor = medium effort, non-streaming 16k output budget. */
@@ -47,11 +47,16 @@ export function createJobTailorService(deps: { llm: LlmClient; logger: Logger })
       const output = result.data;
 
       // 2–4. Deterministic: apply the edits to the original, enforce honesty, describe and score.
-      const applied = applyTailorEdits(original, output, output.keywords);
-      const guarded = applyGuardrails(original, applied.resume, { jobKeywords: output.keywords });
+      // Only keywords the job description really contains count (D-104).
+      const keywords = keywordsFoundIn(output.keywords, request.jobDescription);
+      const applied = applyTailorEdits(original, output, keywords);
+      const guarded = applyGuardrails(original, applied.resume, { jobKeywords: keywords });
       const changes = describeChanges(original, guarded.resume, applied.reasons);
-      const keywordAnalysis = analyzeKeywords(output.keywords, guarded.resume);
-      const scoreBefore = analyzeKeywords(output.keywords, original).matchScore;
+      const scoreBefore = analyzeKeywords(keywords, original).matchScore;
+      const keywordAnalysis = {
+        ...analyzeKeywords(keywords, guarded.resume),
+        matchScoreBefore: scoreBefore,
+      };
 
       const durationMs = Math.round(performance.now() - started);
       // Belt and braces: the response must always match the contract.
@@ -82,6 +87,7 @@ export function createJobTailorService(deps: { llm: LlmClient; logger: Logger })
             keywords: {
               total: keywordAnalysis.matched.length + keywordAnalysis.missing.length,
               matched: keywordAnalysis.matched.length,
+              dropped: output.keywords.length - keywords.length,
               scoreBefore,
               scoreAfter: keywordAnalysis.matchScore,
             },

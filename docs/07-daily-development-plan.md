@@ -305,12 +305,12 @@
 **Goal:** the tailoring API is exposed, and the user can submit a JD.
 **Tasks:** BE-7 · FE-5 · FE-6
 
-- [ ] `POST /api/v1/resumes/tailor` route + controller + zod body validation
-- [ ] Integration tests: happy path, validation errors, AI errors
-- [ ] FE Job Description page: textarea, live character counter (100–15,000), validation messages
-- [ ] `useTailorResume` mutation. **Send `applyResumeAdditions(parsed.resume, additions)` as `resume`, not `parsed.resume`** (D-85)
-- [ ] `StepProgress` component ("Analyzing job description…" → "Tailoring your resume…" → "Checking accuracy…"), time-based in MVP
-- [ ] On success → store the result → navigate to `/result`
+- [x] `POST /api/v1/resumes/tailor` route + controller + zod body validation (`tailorResumeHandler`; failing fields in `details.fields`, D-99)
+- [x] Integration tests: happy path, validation errors, AI errors (`tests/integration/tailor.test.ts`, 26, incl. rate limit and 200 KB limit)
+- [x] FE Job Description page: textarea, live character counter (100–15,000), validation messages (`JobDescriptionPage.test.tsx`, 20)
+- [x] `useTailorResume` mutation. **Send `applyResumeAdditions(parsed.resume, additions)` as `resume`, not `parsed.resume`** (D-85) (tested)
+- [x] `StepProgress` component ("Analyzing job description…" → "Tailoring your resume…" → "Checking accuracy…"), time-based in MVP (steps change at 4 s and 12 s)
+- [x] On success → store the result → navigate to `/result` (`/result` is still the Day 16 placeholder)
 
 **Deliverable:** JD submission works end to end.
 **Exit check:** submitting a JD in the browser returns a TailorResult (visible in devtools).
@@ -445,6 +445,7 @@
 **Goal:** MVP deployed to production.
 **Tasks:** PLT-9 (if skipped) · PLT-10 · PLT-11
 
+- [ ] **Remove the development provider switch before deploying** (D-103): `LLM_PROVIDER_SWITCH`, `llm/providerSwitch.ts`, `middleware/llmProvider.ts`, `llmSwitch` in the health response, `features/dev/ProviderSwitch.tsx`, `api/llmProvider.ts`, and the line in `apps/api/.env`
 - [ ] API Dockerfile (or Render native Node) + production start script
 - [ ] **Resolve OD-10 first:** pick the hosted LLM provider (Claude API credit, or an alternative) and get a key. Run `npm run llm:smoke` with `LLM_PROVIDER=anthropic` (or the chosen provider), and re-check the parse/tailor prompts on it (they were developed on local Ollama, ADR-012)
 - [ ] Deploy the API to Render/Fly.io with production env vars (`LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`, `CORS_ORIGIN`, `TRUST_PROXY=1`, limits)
@@ -463,6 +464,7 @@
 **Goal:** MVP officially done, and Phase 2 is ready to start.
 **Tasks:** DOC-1
 
+- [ ] **Remind the user: the development provider switch (Claude / local model buttons) must be gone** (D-103; the user asked on 2026-11-15 to be reminded on this day). Confirm it was removed on Day 24
 - [ ] Go through the PRD MVP "Must" requirements one by one and tick each
 - [ ] README: quickstart, live URL, screenshots
 - [ ] Update all docs to match what was built (API spec, tech design, ADR statuses)
@@ -493,7 +495,7 @@
 | 12 | Guardrail service | ✅ |
 | 13 | Keyword service + prompt draft | ✅ |
 | 14 | Tailor service + prompt iteration | ✅ (closed by D-98; effort tuning deferred) |
-| 15 | Tailor endpoint + JD page | ⬜ |
+| 15 | Tailor endpoint + JD page | ✅ |
 | 16 | Result page | ⬜ |
 | 17 | Demo + buffer 🛟 → **M1.3** | ⬜ |
 | 18 | PDF template | ⬜ |

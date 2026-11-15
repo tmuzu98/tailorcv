@@ -18,6 +18,7 @@ describe("applyTailorEdits", () => {
     expect(resume).toEqual(original);
     expect(stats).toEqual({
       bulletsReworded: 0,
+      bulletsCorrected: 0,
       bulletsRemoved: 0,
       editsIgnored: 0,
       skillsReordered: 0,
@@ -240,6 +241,75 @@ describe("describeChanges", () => {
     expect(describeChanges(original, final)).toMatchObject([
       { section: "education", type: "reworded", targetId: "edu_1_d1" },
     ]);
+  });
+
+  describe("the model's reason is shown only when it is a reason (D-105)", () => {
+    const BEFORE =
+      "Introduced a shared component library, reducing duplicated UI code across 4 teams.";
+    const AFTER = "Introduced a shared React component library used across 4 teams.";
+    const reasonFor = (reason: string, text = AFTER) => {
+      const { resume, reasons } = applyTailorEdits(
+        original,
+        { ...NO_EDITS, bullets: [{ id: "exp_1_b3", text, reason }] },
+        [],
+      );
+      return describeChanges(original, resume, reasons).find((c) => c.targetId === "exp_1_b3")
+        ?.reason;
+    };
+
+    it("keeps a short reason, like the ones Claude writes", () => {
+      const reason = "Matches the requirement to maintain a component library / design system.";
+      expect(reasonFor(reason)).toBe(reason);
+    });
+
+    it.each([
+      ["a copy of the new text", AFTER],
+      [
+        "a copy of the new text, in other letter case and punctuation",
+        AFTER.toUpperCase().replace(".", ""),
+      ],
+      ["a copy of the original text", BEFORE],
+      ["the new text with more words", `${AFTER} This serves the job.`],
+      ["longer than 30 words", Array.from({ length: 31 }, () => "word").join(" ")],
+    ])("uses the default reason when it is %s", (_, reason) => {
+      expect(reasonFor(reason)).toBe("Reworded to match the job description.");
+    });
+  });
+
+  describe("a change of only spelling case, punctuation or spacing is a correction (D-105)", () => {
+    const BEFORE = "Optimized Seo strategies for 10+ client websites.";
+    const withBullet = (text: string) => {
+      const base = structuredClone(original);
+      const bullet = base.experience[0]?.bullets[0];
+      if (bullet) bullet.text = BEFORE;
+      const { resume, reasons, stats } = applyTailorEdits(
+        base,
+        { ...NO_EDITS, bullets: [{ id: bullet?.id ?? "", text, reason: text }] },
+        [],
+      );
+      return { stats, change: describeChanges(base, resume, reasons)[0] };
+    };
+
+    it.each([
+      "Optimized SEO strategies for 10+ client websites.",
+      "Optimized SEO strategies, for 10+ client-websites",
+      "Optimized  seo strategies for 10+ client websites.",
+    ])("lists %s as a correction, with its own reason, and counts it apart", (text) => {
+      const { stats, change } = withBullet(text);
+      expect(change).toMatchObject({
+        type: "reworded",
+        before: BEFORE,
+        after: text.replace(/\s+/g, " "),
+        reason: "Fixed spelling, capitalization or punctuation.",
+      });
+      expect(stats).toMatchObject({ bulletsReworded: 0, bulletsCorrected: 1 });
+    });
+
+    it("still counts a change of words as a rewrite", () => {
+      const { stats, change } = withBullet("Optimized SEO for 10+ client websites.");
+      expect(change?.reason).toBe("Reworded to match the job description.");
+      expect(stats).toMatchObject({ bulletsReworded: 1, bulletsCorrected: 0 });
+    });
   });
 
   it("only reports what is in the final resume: an edit the guardrails undid is not listed", () => {

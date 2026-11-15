@@ -23,6 +23,8 @@ export interface TailorEdits {
 /** Counts of what was applied or ignored. Content-free, safe to log. */
 export interface TailorEditStats {
   bulletsReworded: number;
+  /** Bullets whose only change is letter case, punctuation or spacing (a typo fix, D-105). */
+  bulletsCorrected: number;
   bulletsRemoved: number;
   /** Bullet edits or removals whose id is not in the resume (or was repeated). */
   editsIgnored: number;
@@ -39,6 +41,27 @@ export interface AppliedEdits {
 const isBlank = (text: string | undefined): text is undefined =>
   text === undefined || text.trim() === "";
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/** The words of a text, ignoring letter case, punctuation and spacing. */
+const wordsOf = (text: string) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+/** Same words, so only case, punctuation or spacing changed ("Seo" → "SEO", "on time" → "on-time"). */
+const isCorrection = (before: string, after: string) =>
+  before !== after && wordsOf(before) === wordsOf(after);
+
+/** Longest reason shown to the user; Claude's run 8 to 14 words, a copied bullet runs longer. */
+export const MAX_REASON_WORDS = 30;
+
+/**
+ * The model's reason, when it is one (D-105). Weak models put the bullet itself, or a paragraph,
+ * in the reason field; then the user sees a default reason instead.
+ */
+function usableReason(reason: string | undefined, before: string | undefined, after: string) {
+  if (reason === undefined) return undefined;
+  const words = wordsOf(reason);
+  if (words === "" || reason.split(/\s+/).length > MAX_REASON_WORDS) return undefined;
+  const copies = (text: string | undefined) => text !== undefined && words.includes(wordsOf(text));
+  return copies(after) || copies(before) ? undefined : reason;
+}
 
 /** Stable sort: skills the job asks for first, the rest in their original order. */
 function relevantFirst(group: SkillGroup, keywords: string[]): SkillGroup {
@@ -59,6 +82,7 @@ export function applyTailorEdits(
 ): AppliedEdits {
   const stats: TailorEditStats = {
     bulletsReworded: 0,
+    bulletsCorrected: 0,
     bulletsRemoved: 0,
     editsIgnored: 0,
     skillsReordered: 0,
@@ -90,7 +114,8 @@ export function applyTailorEdits(
       .sort((a, b) => a.rank - b.rank)
       .map(({ item }) => {
         const text = rewrites.get(item.id)?.text ?? item.text;
-        if (text !== item.text) stats.bulletsReworded += 1;
+        if (isCorrection(item.text, text)) stats.bulletsCorrected += 1;
+        else if (text !== item.text) stats.bulletsReworded += 1;
         return { id: item.id, text };
       });
   };
@@ -119,9 +144,10 @@ export function applyTailorEdits(
 }
 
 const DEFAULT_REASONS = {
-  headline: "Headline aligned with the role you are applying for.",
+  headline: "Headline set to a job title from your resume.",
   summary: "Summary rewritten around what this job asks for.",
   reworded: "Reworded to match the job description.",
+  corrected: "Fixed spelling, capitalization or punctuation.",
   reordered: "Most relevant points moved to the top.",
   removed: "Left out because it is less relevant to this job.",
   skills: "Skills this job asks for come first.",
@@ -169,7 +195,10 @@ export function describeChanges(
     }
     for (const item of now) {
       const before = was.find((candidate) => candidate.id === item.id)?.text;
-      const reason = reasons.get(item.id) ?? DEFAULT_REASONS.reworded;
+      const reason =
+        before !== undefined && isCorrection(before, item.text)
+          ? DEFAULT_REASONS.corrected
+          : (usableReason(reasons.get(item.id), before, item.text) ?? DEFAULT_REASONS.reworded);
       reworded(section, before, item.text, reason, item.id);
     }
     for (const item of was) {

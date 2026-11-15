@@ -38,6 +38,9 @@ describe("toFriendlyError", () => {
     const minutes = new ApiError("RATE_LIMITED", "x", 429, "req_1", { retryAfterSec: 1800 });
     expect(toFriendlyError(seconds).message).toBe("Please try again in about 45 seconds.");
     expect(toFriendlyError(minutes).message).toBe("Please try again in about 30 minutes.");
+    // The service-wide daily limit can be many hours away.
+    const hours = new ApiError("RATE_LIMITED", "x", 429, "req_1", { retryAfterSec: 11.5 * 3600 });
+    expect(toFriendlyError(hours).message).toBe("Please try again in about 12 hours.");
   });
 
   it("passes the requestId through for support, and handles non-API errors", () => {

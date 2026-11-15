@@ -3,11 +3,21 @@ import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { parseEnv } from "../config/env";
-import { AnthropicLlmClient, DeadlineLlmClient, OllamaLlmClient, createLlmClient } from "./index";
+import {
+  AnthropicLlmClient,
+  DeadlineLlmClient,
+  OllamaLlmClient,
+  SwitchableLlmClient,
+  UsageLimitedLlmClient,
+  createLlmClient,
+} from "./index";
 
+/** The provider client inside the two wrappers: deadline → usage limits → provider. */
 const innerOf = (client: unknown) => {
   expect(client).toBeInstanceOf(DeadlineLlmClient);
-  return (client as DeadlineLlmClient).inner;
+  const limited = (client as DeadlineLlmClient).inner;
+  expect(limited).toBeInstanceOf(UsageLimitedLlmClient);
+  return (limited as UsageLimitedLlmClient).inner;
 };
 
 function capture() {
@@ -64,6 +74,45 @@ describe("createLlmClient (the provider switch)", () => {
         maxTokens: 10,
       }),
     ).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  });
+
+  it("wraps every provider in the usage limits from the environment (D-101)", () => {
+    const { logger } = capture();
+    const limitsOf = (source: NodeJS.ProcessEnv) =>
+      (
+        (createLlmClient(parseEnv(source), logger) as DeadlineLlmClient)
+          .inner as UsageLimitedLlmClient
+      ).limits;
+    expect(limitsOf({ LLM_PROVIDER: "ollama" })).toEqual({ dailyCalls: 300, maxConcurrent: 4 });
+    expect(
+      limitsOf({
+        LLM_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: "sk-ant-x",
+        LLM_DAILY_CALL_LIMIT: "50",
+        LLM_MAX_CONCURRENT: "2",
+      }),
+    ).toEqual({ dailyCalls: 50, maxConcurrent: 2 });
+  });
+
+  it("LLM_PROVIDER_SWITCH=true → both providers, each with its own limits and deadline (D-103)", () => {
+    const { logger, logs } = capture();
+    const client = createLlmClient(
+      parseEnv({ LLM_PROVIDER_SWITCH: "true", ANTHROPIC_API_KEY: "sk-ant-x" }),
+      logger,
+    );
+    expect(client).toBeInstanceOf(SwitchableLlmClient);
+    const { clients, defaultProvider } = client as SwitchableLlmClient;
+    expect(defaultProvider).toBe("ollama");
+    expect(innerOf(clients.ollama)).toBeInstanceOf(OllamaLlmClient);
+    expect(innerOf(clients.anthropic)).toBeInstanceOf(AnthropicLlmClient);
+    expect((clients.ollama as DeadlineLlmClient).deadlineMs).toBe(300_000);
+    expect((clients.anthropic as DeadlineLlmClient).deadlineMs).toBe(120_000);
+    expect(logs().some((l) => l.msg.includes("provider switch is ON"))).toBe(true);
+  });
+
+  it("without the switch the client is a single provider, as before", () => {
+    const { logger } = capture();
+    expect(createLlmClient(parseEnv({}), logger)).not.toBeInstanceOf(SwitchableLlmClient);
   });
 
   it("wraps every provider in the overall deadline: 5 min for ollama, 120 s for anthropic", () => {

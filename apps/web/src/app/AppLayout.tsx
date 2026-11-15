@@ -1,5 +1,8 @@
 import { Link, NavLink, Outlet } from "react-router";
+import type { HealthResponse } from "@tailorcv/shared";
+import { useState } from "react";
 import { ApiStatus } from "../components/ApiStatus";
+import { ProviderSwitch } from "../features/dev/ProviderSwitch";
 
 const steps = [
   { to: "/", label: "1. Upload" },
@@ -9,6 +12,9 @@ const steps = [
 ];
 
 export function AppLayout() {
+  // DEVELOPMENT ONLY, TEMPORARY (D-103): set when the API's provider switch is on.
+  const [llmSwitch, setLlmSwitch] = useState<HealthResponse["llmSwitch"]>();
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-200 bg-white">
@@ -31,6 +37,7 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
+          <ProviderSwitch info={llmSwitch} />
         </div>
       </header>
 
@@ -41,7 +48,7 @@ export function AppLayout() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-slate-500">
           <span>Your resume is processed and not stored.</span>
-          <ApiStatus />
+          <ApiStatus onHealth={(health) => setLlmSwitch(health.llmSwitch)} />
         </div>
       </footer>
     </div>

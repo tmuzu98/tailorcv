@@ -1,16 +1,20 @@
+import type { HealthResponse } from "@tailorcv/shared";
 import { useEffect, useState } from "react";
 import { fetchHealth } from "../api/health";
 
 type Status = { state: "loading" } | { state: "ok"; version: string } | { state: "down" };
 
 /** Small indicator showing whether the API is reachable (Phase 0 walking skeleton). */
-export function ApiStatus() {
+export function ApiStatus({ onHealth }: { onHealth?: (health: HealthResponse) => void }) {
   const [status, setStatus] = useState<Status>({ state: "loading" });
 
   useEffect(() => {
     const controller = new AbortController();
     fetchHealth(controller.signal)
-      .then((h) => setStatus({ state: "ok", version: h.version }))
+      .then((h) => {
+        setStatus({ state: "ok", version: h.version });
+        onHealth?.(h);
+      })
       .catch((err: unknown) => {
         if (!controller.signal.aborted) {
           console.error(err);
@@ -18,6 +22,8 @@ export function ApiStatus() {
         }
       });
     return () => controller.abort();
+    // Runs once: `onHealth` is a state setter from the layout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dot = {

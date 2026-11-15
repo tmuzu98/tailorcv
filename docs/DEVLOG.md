@@ -16,21 +16,25 @@
 |---|---|
 | Last updated | 2026-11-15 |
 | Phase | Phase 1 (MVP), Milestone 1.3 (tailoring). Milestone 1.2 (upload & parse) complete |
-| Current day (per `07-daily-development-plan.md`) | **Day 15 ⬜ (next)**: tailor endpoint + job description page. Day 14 ✅ closed by the user's decision (D-98): tailoring runs on Claude with the revised `tailor-v2` prompt (D-97); effort tuning deferred |
-| Branch | `main`. Days 13–14 committed and pushed in Session 15 |
+| Current day (per `07-daily-development-plan.md`) | **Day 15 ✅** (the user ran the full flow in the browser with their own resume on 2026-11-15). Next: **Day 16, result page (not started)**. Day 15, the security limits (D-101, D-102), the temporary provider switch (D-103) and the quality rules (D-104) are uncommitted |
+| Branch | `main`. Days 13–14 pushed (`1160cc8`). Everything after it is **uncommitted** (D-71): 46 changed or new files |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | Days 13–14 feature commit (Session 15); hash and CI result are in the Session 15 log entry |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **503 tests**: shared 69, web 69, api 365) |
+| Last commit | `1160cc8 feat(api): keyword service, edits-only tailoring and tailor service (Days 13-14)` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **618 tests**: shared 71, web 101, api 446). GitHub CI green on `1160cc8` |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. **`apps/api/.env` is now on `LLM_PROVIDER=anthropic`** (the user added a Claude API key on 2026-11-15), so every parse or tailor in the browser is billed. For the free local model: `LLM_PROVIDER=ollama` (Ollama 0.40.16 `llama3`, `ollama serve`) |
+| Local dev | Servers **stopped** at the end of Session 15. `apps/api/.env` has `LLM_PROVIDER_SWITCH=true`: the header shows the "Local model / Claude" buttons (D-103, temporary). `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. **`apps/api/.env` is on `LLM_PROVIDER=ollama`** (local `llama3`, free; switched back by the user's decision on 2026-11-15 after the Claude test runs). The Claude key stays in `.env`; to use Claude again set `LLM_PROVIDER=anthropic`, and ask the user before any Claude call |
 
-**Next action:** Day 15: tailor endpoint + job description page.
+**Next action (start of the next session):** ask the user for the result of their browser run on the D-104 changes (typos fixed? any false guardrail warning? `matchScoreBefore` present?). Then commit Day 15 + D-101 to D-104 when told, and start Day 16 (result page).
 
 **Next steps (as of Day 15, in order)**
-1. **Day 15:** tailor endpoint (`POST /api/v1/resumes/tailor` → `jobTailorService.tailor`, inject it like the parser service) + job description page + progress UI. The request must send `applyResumeAdditions(parsed.resume, additions)`, not `parsed.resume` (D-85).
+1. **Commit and push Day 15** (with D-101 to D-103) when the user says so. Then **Day 16:** result page (job summary header, tailored resume preview, change list, keyword panel, warnings banner; proposed: tabs, and the keyword score before tailoring added to the response).
+   - Done in part 5 (D-104): the keyword filter, the dropped-number, commentary and headline guardrails, the typo rule in the prompt. **Not yet checked on Claude** (the user's next browser run): whether typos are now fixed, and whether Claude's bullets pass the new guardrails without false warnings.
+   - Result page ideas agreed in conversation: show the score before → after, and turn missing keywords into an action ("Have this experience? Add it on the review page and run again").
+   - **REMINDER for Day 24/25 (the user asked for it): remove the development provider switch before production** (D-103; checkboxes in the plan).
 2. **User, still open:** confirm ADR-015 (the model returns edits), and say whether Claude is the production provider (OD-10: the key exists and works, the decision is not recorded).
 3. **Carried over from Day 14 (D-98):** the revised prompt was checked with one Claude run only. Watch in Day 16–17 use and the Day 22 evals: (a) it now rewords few or no bullets when they already fit the job (the one run changed none); (b) the "no first person" summary rule was added after that run and has not been sent to a model; (c) effort `medium` vs `low` has not been compared.
-4. **Before Day 24:** resolve OD-10 formally (provider, spend limit). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
+4. **Security review follow-ups for the user (Session 15 part 3):** set a monthly spend limit for the API key in the Anthropic Console; decide on the privacy wording (the footer says "processed and not stored" but does not say the resume is sent to an AI provider); review the D-101 default numbers.
+5. **Before Day 24:** resolve OD-10 formally (provider, spend limit). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
 
 **Blockers:** none.
 
@@ -149,6 +153,14 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-14 | D-96 | **Keyword rule and keyword matching corrected after a model-quality replay.** (1) `keywordService`: words are reduced to a rough stem (plurals, "-ed", "-ing", final "e"), so "mentor" matches "Mentored" and "testing" matches "tested". (2) Guardrail keyword rule (D-95) now blocks a rewrite only when the keyword contains a word the resume never uses in any form (same stem, or a shared start of ≥ 5 letters covering ≥ 60% of the longer word); short words must be equal ("Java" ≠ "JavaScript"). "GraphQL", "Storybook", "frontend architecture" are still blocked; "frontend performance", "internship" (resume: "Intern") are allowed | The replay showed D-95 as first built was wrong: it rejected honest rewrites (2 summaries, 1 bullet) and, by blocking every missing keyword, made it **impossible for tailoring to raise the keyword score**. After the fix the same answers gave 0 warnings and 44 → 50 and 50 → 57 | Tech Design §6.2 steps 3–4 |
 | 2026-11-15 | D-97 | **`tailor-v2` prompt revised for Claude after the first six Claude runs** (still `tailor-v2`: never released). (1) Honesty: rewording may not add an action, responsibility, scale, audience or result the resume does not state, with examples. (2) Headline: a job title the candidate has held, written as in the resume (keeps "Intern"/"Junior"/"Senior"); never the title of the job applied for. (3) Bullets: every bullet is still listed (for the order), but a bullet is reworded only when that makes it match the job better; otherwise its original text is returned and the reason is empty. "A rewritten bullet must not be a copy" and "Rewrite every bullet" removed. (4) Summary: every statement from the resume, no first person | The six Claude runs had no invented tool, employer or number, but had mild embellishments ("and maintained", "large datasets", "a non-technical audience", "leading cross-team initiatives"), a headline that dropped "Intern", and many cosmetic rewrites ("Led migration" → "Led the migration") that inflate the change list the user reviews. The must-rewrite rules were written for `llama3`, which copied; on Claude they cause the cosmetic changes | Tech Design §6.2 step 2 |
 | 2026-11-15 | D-98 | **Day 14 closed with one prompt iteration and one Claude check run; effort tuning deferred.** The user's instruction: one iteration, one test run, then push and start Day 15 | The user's call on time and API spend. Known cost: the revised prompt is checked on one pair only (see Next steps) | Plan Day 14 |
+| 2026-11-15 | D-99 | **A tailor `VALIDATION_ERROR` lists the failing fields in `details.fields`**: at most 10 entries of `{ path, message }`, the path dotted (`resume.basics.fullName`), the message the schema's own text. A submitted value is never echoed. The web app shows the server's message only for fields the user types (`jobDescription`); for anything else it shows the generic copy | The API spec's catalog says "show the field errors" but no shape was defined. Paths and our own messages carry no resume or job description text (hard rule); a resume-shaped error means a bug in our app, which the user cannot fix by editing | API spec §3 |
+| 2026-11-15 | D-100 | **Job description page behaviour.** The counter and the limits use the trimmed length (what the server counts). The length message appears only after the first submit attempt, then updates live. No `maxLength` on the textarea: text over the limit is kept and reported, not cut silently. The tailor step indicator changes at 4 s and 12 s and adds a note after 30 s | A hard cut on paste would lose the end of a posting without telling the user. The step times fit Claude's measured 8–16 s; the note covers the local model (15–37 s) | Tech Design §6.4 |
+| 2026-11-15 | D-101 | **Service-wide AI limits** in `llm/withUsageLimits.ts`, a provider-neutral wrapper inside the deadline wrapper: `LLM_DAILY_CALL_LIMIT` (default 300 AI calls per UTC day) and `LLM_MAX_CONCURRENT` (default 4 in flight), all clients together, in memory. Over either → `429 RATE_LIMITED` with `Retry-After` before the provider is contacted. A call counts when it starts (a failed call may be billed) | Found in the security review the user asked for: the only spend control was the per-IP rate limit, which does not stop many addresses. The defaults are Claude's proposal (300 calls is roughly \$6–15 a day at the cost seen so far); the user has not reviewed the numbers | Tech Design §7, API spec intro |
+| 2026-11-15 | D-102 | **A resume in a tailor request may carry at most 40,000 characters of text** (`RESUME_MAX_TEXT_CHARS` in `packages/shared`, checked in `TailorRequestSchema`) | Same review: the resume fields had no length limits, so one request could send close to 200 KB of text to the AI (the JSON body limit), many times the cost of a real resume. A dense 5-page resume is about 20,000 characters | API spec §3 |
+| 2026-11-15 | D-103 | **Temporary development switch between Claude and the local model, per request.** `LLM_PROVIDER_SWITCH=true` (off by default; production refuses to start with it): `createLlmClient` builds both providers behind `SwitchableLlmClient`, each with its own usage limits and deadline; the request header `X-LLM-Provider` picks one, carried to the client in an AsyncLocalStorage context that the controller opens around the service call. The health response then has `llmSwitch`, and the web app shows two buttons in the header. **To be removed before the production deploy; the user asked to be reminded on Day 25** | The user wants to compare both models from the browser without editing `.env` and restarting. Services stay provider-neutral (D-69). The context is opened in the controller, not in the middleware, because an upload is parsed in between and an async context does not reliably survive that | API spec §1, plan Days 24–25 |
+| 2026-11-15 | D-104 | **Tailoring quality enforced in code, not left to the model.** (1) `keywordsFoundIn`: only keywords whose words all occur in the job description are used for skill order, guardrails and the score. (2) Guardrails for a reworded bullet or detail: it keeps every number of its original, and it adds no commentary about the candidate (a short pattern list); otherwise the original text is kept with a warning. (3) Guardrail for the headline: a new one must be a job title from the resume. (4) `keywordAnalysis.matchScoreBefore` (optional in the shared schema). (5) Prompt: correct clear typos and grammar in every bullet, changing nothing else. (6) The headline's reason text now says "set to a job title from your resume" | The user's two browser runs with their own resume. On `llama3`: commentary on all 13 bullets, the resume's skills listed as the job's keywords (score 100, nothing missing), numbers dropped, 0 warnings. On Claude: honest, but typos left in because unchanged bullets had to be returned exactly. The user asked for the changes a principal engineer would make: deterministic checks hold on any model, a prompt does not. Known cost: the commentary patterns can reject a legitimate rewrite (the original is then kept, with a warning), and they catch only the listed forms | Tech Design §6.2 steps 2a and 3, API spec §3 |
+| 2026-11-15 | D-105 | **Tailoring output checked for what `llama3` slipped past D-104.** (1) Prompt: the bullet field's description no longer contains "for this job" (the model copied it onto every bullet); new rules: never mention the job/role/company inside a bullet, the reason is never a copy of the bullet. (2) Guardrail: a reworded bullet, detail or summary that mentions the job being applied for ("this job/role/position/posting/opening", "the target role/company") → original kept + warning; not flagged if the user's own text had it. (3) The model's change reason is used only when it is a reason (blank, > 30 words, or containing the bullet's before/after text → default). (4) A change of only case/punctuation/spacing gets the reason "Fixed spelling, capitalization or punctuation." and counts as `bulletsCorrected`; the change type stays `reworded` (no schema change) | The user's browser run on `llama3` with their own resume: "for this job." appended to all 13 bullets, every reason a copy of the bullet, most "rewrites" only punctuation, 0 warnings. The user asked that the fixes must not hurt Claude's output: replaying the six saved Claude runs (Day 14, synthetic fixtures) through the new code changed nothing (45 bullets, 45 reasons, 6 summaries; Claude's reasons are ≤ 14 words) | Tech Design §6.2 steps 3 and 4b, API spec §3, ADR-017 note |
+| 2026-11-15 | D-106 | **Competitor research is kept apart from the project docs, for after the MVP.** A top-level `research/` folder (first note: `research/nextraise-ai.md`). It changes no scope; ideas from it go through the Parking Lot → decision flow when the MVP is done | The user's request: "for knowledge purpose", "come back to this once we have our MVP ready" | `research/` |
 
 ---
 
@@ -164,6 +176,10 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Keyword matching: a larger alias table, and related word forms that are not simple endings ("analysis"/"analyzed", "intern"/"internship" count as related for the guardrail, but not for the score), if the Day 22 evals show misses. (Verb forms "-ed"/"-ing" done in D-96.)
 - Tailoring: compare effort `medium` vs `low` on Claude (quality, latency, cost). Deferred from Day 14 (D-98); fits the Day 22 evals.
 - Guardrail in code for the headline (must equal the original headline or a job title in the resume) and for dropped numbers in a reworded bullet, instead of relying on the prompt (D-97).
+- **After the MVP: review `research/nextraise-ai.md`** (D-106). Top candidates: "needs your input" questions for missing keywords and missing numbers; accept/reject per change on the result page; deterministic resume quality checks with an open score formula; score bands; DOCX export and input; multi-job tailoring with browser-only history.
+- Change type `corrected` in the shared schema (typo-only changes shown apart on the result page). D-105 kept `reworded` with its own reason to avoid a schema change; decide on Day 16 if the result page needs it.
+- Guardrail for a dropped tool in a reworded bullet ("…using React, Node.js, Express.js…" → Express.js gone), like the D-104 dropped-number check. Seen on `llama3` on 2026-11-15.
+- Summary quality: filler openers ("Highly motivated and detail-oriented…") and claims the resume does not state ("object-oriented design"). Hard to check in code; Day 22 evals.
 - ~~Overall deadline for LLM calls~~ → decided: overall deadline per request (D-72), implemented on Day 9.
 
 ---
@@ -794,6 +810,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 
 **Verified**
 - `npm run check` ✅ (0 lint warnings, 503 tests: api 365).
+- GitHub CI on the pushed commit: see part 2.
 - **Not verified:** the revised prompt on the other five pairs; the no-first-person rule on any model; effort `low`; cost per run (cache token counts missing from the one run); the user's own resume.
 
 **Discussed**
@@ -805,6 +822,119 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none.
 **Exit check met?** Day 14 ✅ by decision D-98: six real runs on each provider with latency recorded. "0 fabricated facts": no invented tool, employer or number on Claude; the mild embellishments found are addressed by D-97, confirmed on one pair. Effort tuning not done.
 **Next session:** Day 15.
+
+### 2026-11-15: Session 15, part 2 (Days 13–14 pushed; Day 15: tailor endpoint + job description page)
+**Day:** 15
+**Done**
+- **Push:** `1160cc8` (Days 13–14) pushed; **GitHub CI green**.
+- [BE-7] Tests first (`tests/integration/tailor.test.ts`, 21 of 26 red), then `tailorResumeHandler` in `controllers/resumesController.ts`, the route in `routes/resumes.ts` (rate limit → controller) and `createJobTailorService` wired in `app.ts`.
+- [FE-5, FE-6] Tests first (`pages/JobDescriptionPage.test.tsx` 20, `features/job/tailorSteps.test.ts` 6), then: `api/client.ts` (`json` option), `api/resumes.ts` (`tailorResume`), `features/job/` (`useTailorResume`, `StepProgress`, `tailorSteps`, `jobDescriptionChecks`), `pages/JobDescriptionPage.tsx` (replaces the placeholder), `api/errorMessages.ts` (server field message for `jobDescription`).
+- Tests: api 365 → **391**, web 69 → **95**, total **555**.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 555 tests).
+- Deliberate break (D-33): 8 breaks, each run separately (no rate limiter on the route, no cap on listed fields, a submitted value echoed in the message, additions not sent, result not stored, message shown before submit, Cancel not aborting, no JSON content type). All 8 failed at least one test.
+- **Real HTTP request** to a temporary API (`PORT=4010`, `LLM_PROVIDER=ollama`, synthetic fixture): `POST /api/v1/resumes/tailor` → 200 in 36.1 s with a contract-shaped body (5 changes, 6 warnings, score 50); `{"jobDescription":"too short"}` → 400 `VALIDATION_ERROR` naming `resume` and `jobDescription`.
+- **Not verified:** the page in a real browser (the Day 15 exit check); the endpoint on Claude; the page with a screen reader.
+
+**Decisions:** D-99, D-100.
+**Doc-sync audit (D-52):** API spec §3 (validation details, order of checks), Tech Design §6.4 (job description page, step indicator), roadmap (BE-7, FE-5, FE-6), plan (Day 15 items, tracker 🟡), README status, DEVLOG. No shared schema change. `.env.example`: no change.
+**Issues / blockers:** none. Noted: on `llama3` the D-97 prompt gave 6 guardrail warnings and 5 changes for swe × frontend (13 changes and 0 warnings before D-97); one run, not investigated (Known Issue #10: `llama3` is not the quality reference).
+**Exit check met?** Day 15 🟡: built and tested; "submitting a JD in the browser returns a TailorResult" not done yet. **Not committed** (D-71).
+**Next session:** the browser check, then Day 16.
+
+### 2026-11-15: Session 15, part 3 (security review before calling Claude; two spend limits added)
+**Day:** 15
+**Done**
+- The user asked for a security review of the backend before it calls Claude, and said: **no more Claude API calls without asking first** (standing instruction; `apps/api/.env` is on `anthropic`, so `tailor:run`, `parse:pdf`, `llm:smoke` and the dev server would call Claude: use `LLM_PROVIDER=ollama` or `--edits`).
+- **Review, in place and correct:** key only in the backend env, never logged, not in git history (only test placeholders); production refuses to start without it. Logs carry ids, sizes, timings and token counts, never content; access log without headers, query or body. Uploads: 5 MB, magic bytes, ≤ 5 pages, memory only. CORS allowlist, helmet, sanitized request id, 200 KB JSON limit. Per call: `max_tokens`, timeout, overall deadline, cancel on disconnect, refusal handled. Prompt injection: delimited data, no tools, schema-checked output, guardrails. `npm audit --omit=dev`: 0 vulnerabilities.
+- **Gaps fixed, tests first:** service-wide AI limits (D-101: `llm/withUsageLimits.ts`, 8 tests, env vars, `.env.example`); resume text cap (D-102: shared schema, 2 tests + 1 integration test); the error handler adds `Retry-After` for a `RATE_LIMITED` raised outside the per-IP limiter; long waits shown in hours in the web copy.
+- Tests: shared 69 → 71, api 391 → **402**, total **568**.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 568 tests). No model was called.
+- Tried and dropped: `isEvalSupported: false` for pdf.js; the option does not exist in the pdf.js that `unpdf` 2.1.0 ships.
+
+**Decisions:** D-101, D-102.
+**Doc-sync audit (D-52):** API spec (intro, §3 field table, §5 `RATE_LIMITED`), Tech Design §7 (AI spend row, prompt injection row) and the env table, `.env.example`, DEVLOG. Known Issue #7 (`npm audit` in CI + Dependabot listed in §7 but not set up) is still open.
+**Issues / blockers:** open for the user: Console spend limit, privacy wording, the D-101 numbers. Accepted and noted: the limits are in memory (per process, reset on restart); the JSON body is parsed (≤ 200 KB) before the rate limiter runs.
+**Exit check met?** Day 15 🟡 (unchanged: the browser check is open). **Not committed** (D-71).
+**Next session:** the browser check, then Day 16.
+
+### 2026-11-15: Session 15, part 4 (Day 15 exit check by the user; temporary provider switch)
+**Day:** 15
+**Done**
+- `apps/api/.env` switched back to `LLM_PROVIDER=ollama` at the user's request; dev servers started.
+- **Day 15 exit check ✅ by the user:** upload → review → job description → tailor in the browser, with their own resume and a real posting, on local `llama3`; 200 in 40.1 s, the response visible in devtools.
+- **What that run showed on `llama3`** (no resume content recorded here): every reworded bullet got an ending quoting a job requirement ("which demonstrates the ability to '…'"); the model listed the resume's skills as the job's keywords, so the score was 100 with nothing missing; numbers and tools were dropped from bullets; a generic summary with one phrase from the posting that the resume does not state; 0 guardrail warnings, because none of these is checked. Claude proposed three guardrails in code (see Next steps); the user has not answered yet.
+- **Temporary provider switch (D-103)**, at the user's request, tests alongside: `llm/providerSwitch.ts`, `middleware/llmProvider.ts`, `createHealthRouter`, `LLM_PROVIDER_SWITCH` in `env.ts` and `.env.example`, shared `LlmProviderSchema` / `LLM_PROVIDER_HEADER` / `llmSwitch` on the health schema; web: `api/llmProvider.ts`, `features/dev/ProviderSwitch.tsx`, the header in `api/client.ts`, `ApiStatus` passes the health response to the layout.
+- Tests: api 402 → **416**, web 95 → **101**, total **588**.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 588 tests).
+- Running dev API with the switch on: health carries `llmSwitch` (`default: ollama`, both available); an unknown `X-LLM-Provider` → 400.
+- Covered by tests with fake providers: the header routes tailor **and parse (multipart)** to the chosen provider; concurrent requests stay apart; switch off → header ignored and no `llmSwitch`; production refuses the flag.
+- **Not verified:** a real Claude call through the switch (billed; the user's to make); the buttons in a real browser.
+
+**Decisions:** D-103. Day 15 ✅.
+**Doc-sync audit (D-52):** API spec §1 (health field, header), Tech Design env table, Dev Guide §6, `.env.example`, plan (Day 15 ✅ in the tracker, removal checkboxes on Days 24 and 25), DEVLOG. Shared schema change (health): spec updated in the same change.
+**Issues / blockers:** none.
+**Exit check met?** Day 15 ✅. **Not committed** (D-71).
+**Next session:** see Next steps.
+
+### 2026-11-15: Session 15, part 5 (tailoring quality enforced in code, D-104)
+**Day:** 15 → 16 (before the result page)
+**Done**
+- The user ran the same resume through Claude from the browser with the provider switch (14.3 s, 0 warnings, keyword score 36 with a real missing list). Honest and clean, and light: headline, summary and bullet order changed, no bullet reworded, three typos left in. No resume content is recorded here.
+- The user asked for the changes a principal engineer would make. Tests first, then (D-104): `keywordService.keywordsFoundIn`; `guardrailService` (`safeItemText`: dropped number, commentary; `safeHeadline`); `matchScoreBefore` in the shared schema and the service; the typo rule in `tailor.v2.ts`; the headline reason text in `tailorEdits.ts`.
+- Tests: api 416 → **446**, total **618**.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 618 tests).
+- Deliberate break (D-33): 7 breaks, each run separately (dropped-number rule off, commentary rule off, commentary rule ignoring the original, headline rule off, keyword filter off, before score missing, filter matching any word). All 7 failed at least one test.
+- One real run on local `llama3` (swe × frontend, 33.8 s): 3 bullets with commentary rejected with a warning each; keywords 10, all from the posting, score 60 → 60. One form got through ("…, which shows strong communication skills"): pattern added, with a test for it and one for a legitimate "a report that shows…".
+- **Not verified:** the new prompt rule and the new guardrails on Claude (the user will run it; no Claude call was made by Claude Code).
+
+**Decisions:** D-104.
+**Doc-sync audit (D-52):** API spec §3 (`matchScoreBefore`, keyword filter), Tech Design §5.2 type, §6.2 steps 2, 2a and 3, DEVLOG. Shared schema change (optional field): spec updated in the same change.
+**Issues / blockers:** none.
+**Exit check met?** n/a (between Day 15 ✅ and Day 16). **Not committed** (D-71).
+**Next session:** the user's browser run, then Day 16.
+
+### 2026-11-15: Session 15, close
+**Day:** 15 ✅ → 16 next
+**State at close**
+- Pushed: `1160cc8` (Days 13–14), CI green. Uncommitted: Day 15 (tailor endpoint, job description page), D-101/D-102 (spend limits), D-103 (temporary provider switch), D-104 (quality rules in code), the docs for all of them. `npm run check` ✅, 618 tests.
+- `apps/api/.env` (not in git): `LLM_PROVIDER=ollama`, `LLM_PROVIDER_SWITCH=true`, the Claude key in place. Dev servers stopped.
+- Standing instruction from the user: **no Claude API call without asking first**.
+- Waiting on the user: the browser run on the D-104 changes; whether to commit; ADR-015 and OD-10 confirmations; the security follow-ups (Console spend limit, privacy wording, D-101 numbers).
+- The user noted the Claude Code usage allowance was running out quickly in this long session. Suggested: start each session fresh (this file carries the state) and use a smaller model for routine work.
+
+**Decisions this session:** D-97 to D-104. ADR-016 (spend limits in the LLM layer), ADR-017 (quality rules enforced in code).
+**Doc-sync audit (D-52), whole session:** DEVLOG, plan (Days 13–15 ✅, removal checkboxes on Days 24–25), API spec (§1 health, §3 tailor, §5 catalog, intro), Tech Design (§5.2, §6.2, §6.4, §7, env table), Dev Guide §6, roadmap (BE-7, FE-5, FE-6), ADRs 016–017, README status, `.env.example`. Known Issue #7 still open.
+**Next session:** see Next action under Current Status.
+
+### 2026-11-15: Session 16 (D-105 fixes, competitor research, Day 15 commit)
+**Day:** 15 ✅ → 16
+**Done**
+- Dev servers started; the user ran their own resume on `llama3` through the browser (parse 42.5 s; tailor 56.5 s, 13 bullets "reworded", 0 warnings, keyword score 88 → 88, 8 of 24 model keywords dropped by the D-104 filter). No resume content is recorded here.
+- Found in that response: "for this job." appended to every bullet (copied from the prompt's field description), every reason a copy of the bullet, most rewrites only punctuation/case. **D-105**, tests first (22 new, 18 red before the code): `tailor.v2.ts` (field descriptions, two rules), `guardrailService.ts` (job-mention rule for bullets/details and the summary), `tailorEdits.ts` (`usableReason`, `isCorrection`, `bulletsCorrected`).
+- Explained the API flow (routes → controllers → services → LLM layer) to the user.
+- Research on nextraise.ai for after the MVP (D-106): `research/nextraise-ai.md`.
+- Tests: api 446 → **468**, total **640**.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 640 tests).
+- Replay of saved runs through the new code (no model call): Claude, six pairs, 45 reworded bullets, 45 reasons, 6 summaries → no change; `llama3`, six pairs → the same 17 of 31 rejections as before, all by D-104 rules.
+- Deliberate break (D-33): 5 breaks (job rule for bullets, for the summary, reason check, correction label, 30-word cap). All 5 failed at least one test.
+- A browser console error "Cannot read properties of undefined (reading 'M_ID')" came from a Chrome extension (`chrome-extension://…/executors/200.js`), not from our code.
+- **Not verified:** the new prompt wording on a live model (`llama3` or Claude). The D-104 browser check on Claude (typos, false warnings) is still not reported.
+
+**Decisions:** D-105, D-106.
+**Doc-sync audit (D-52):** Tech Design §6.2 (step 3 job-mention rule, step 4b reasons and corrections), API spec §3 (`changes[].reason`), ADR-017 (extension note), DEVLOG (decisions, Parking Lot), `research/` (new). No shared schema change; `.env.example` unchanged; README unchanged (no test counts in it).
+**Issues / blockers:** none.
+**Exit check met?** n/a (Day 15 ✅, Day 16 not started).
+**Next session:** Day 16, result page.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

@@ -1,5 +1,11 @@
-import { API_PREFIX, ApiErrorResponseSchema, type ErrorCode } from "@tailorcv/shared";
+import {
+  API_PREFIX,
+  ApiErrorResponseSchema,
+  LLM_PROVIDER_HEADER,
+  type ErrorCode,
+} from "@tailorcv/shared";
 import type { z } from "zod";
+import { getLlmProviderChoice } from "./llmProvider";
 
 // Empty in local dev (the Vite proxy handles /api). Set to the API URL in production.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -34,16 +40,31 @@ export function apiUrl(path: string): string {
 /**
  * Typed fetch wrapper: sends the request, turns the standard error JSON (API spec §4) into an
  * ApiError, and validates successful bodies with the shared schema (the FE↔BE contract).
+ * `json` sends a JSON body with its Content-Type; `body` sends anything else (e.g. FormData).
  */
 export async function apiRequest<S extends z.ZodType>(
   path: string,
-  options: { schema: S; method?: "GET" | "POST"; body?: BodyInit; signal?: AbortSignal },
+  options: {
+    schema: S;
+    method?: "GET" | "POST";
+    body?: BodyInit;
+    json?: unknown;
+    signal?: AbortSignal;
+  },
 ): Promise<z.infer<S>> {
+  // DEVELOPMENT ONLY, TEMPORARY (D-103): the provider picked with the header buttons, if any.
+  const provider = getLlmProviderChoice();
+  const headers = {
+    ...(options.json !== undefined && { "Content-Type": "application/json" }),
+    ...(provider && { [LLM_PROVIDER_HEADER]: provider }),
+  };
   let res: Response;
   try {
     res = await fetch(apiUrl(path), {
       method: options.method ?? "GET",
       ...(options.body !== undefined && { body: options.body }),
+      ...(options.json !== undefined && { body: JSON.stringify(options.json) }),
+      ...(Object.keys(headers).length > 0 && { headers }),
       ...(options.signal && { signal: options.signal }),
     });
   } catch (err) {

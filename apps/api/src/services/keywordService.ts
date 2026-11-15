@@ -134,3 +134,21 @@ export function analyzeKeywords(keywords: readonly string[], resume: Resume): Ke
     matchScore: total === 0 ? 0 : Math.round((matched.length / total) * 100),
   };
 }
+
+/**
+ * The keywords that the job description really contains (D-104). The keywords come from the
+ * model, and a weak model may list the resume's own skills as "what the job asks for", which
+ * makes every keyword match and the score meaningless. A keyword is kept when each of its words
+ * occurs in the text, after the same normalization as everywhere else (case, word forms,
+ * aliases). The words need not be next to each other: "user-facing products" is found in
+ * "user-facing financial technology products".
+ */
+export function keywordsFoundIn(keywords: readonly string[], text: string): string[] {
+  const textWords = new Set(normalizeForMatching(text).split(" "));
+  return keywords.filter((keyword) => {
+    const words = normalizeForMatching(keyword)
+      .split(" ")
+      .filter((word) => word !== "");
+    return words.length > 0 && words.every((word) => textWords.has(word));
+  });
+}

@@ -42,10 +42,24 @@ const EnvSchema = z
      */
     LLM_PROVIDER: z.enum(["anthropic", "ollama"]).optional(),
     /**
+     * DEVELOPMENT ONLY, TEMPORARY (D-103): `true` lets a request choose the provider with the
+     * `X-LLM-Provider` header (the web app shows buttons for it). Production refuses it.
+     */
+    LLM_PROVIDER_SWITCH: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    /**
      * Overall budget per AI call incl. all retries (D-72). Default: 120 s for anthropic,
      * 5 min for ollama (local models are slow).
      */
     LLM_DEADLINE_MS: z.coerce.number().int().min(1000).max(1_800_000).optional(),
+    /**
+     * Spend protection (all users together, in memory): AI calls per UTC day, and AI calls in
+     * flight at once. Over either, the request gets 429 RATE_LIMITED before the provider is called.
+     */
+    LLM_DAILY_CALL_LIMIT: z.coerce.number().int().min(1).default(300),
+    LLM_MAX_CONCURRENT: z.coerce.number().int().min(1).max(100).default(4),
     OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
     OLLAMA_MODEL: z.string().min(1).default("llama3"),
     /** Local models are slow: 5 min default. */
@@ -59,6 +73,13 @@ const EnvSchema = z
         code: "custom",
         path: ["LLM_PROVIDER"],
         message: "ollama is for local development only; use anthropic in production",
+      });
+    }
+    if (env.NODE_ENV === "production" && env.LLM_PROVIDER_SWITCH) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LLM_PROVIDER_SWITCH"],
+        message: "the provider switch is for local development only; remove it in production",
       });
     }
     if (env.NODE_ENV === "production" && !env.ANTHROPIC_API_KEY) {

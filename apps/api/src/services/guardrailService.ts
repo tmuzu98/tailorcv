@@ -33,6 +33,10 @@ import { collectResumeText } from "./resumeText";
  *  - a skill, technology or section item that the original does not mention   → removed
  *  - reworded text with a number the original never states                    → original text kept
  *  - reworded text with a job keyword naming something the original never mentions → original kept
+ *  - a reworded line that leaves out a number its original states             → original text kept
+ *  - a reworded line that adds commentary about the candidate                 → original text kept
+ *  - a reworded line or summary that mentions the job being applied for      → original text kept
+ *  - a new headline that is not a job title from the resume                   → original kept
  *
  * Pure and deterministic: inputs are not modified, and running it on its own output changes
  * nothing. Warnings contain resume text (they are shown to the user); `stats` are counts only
@@ -51,7 +55,7 @@ export interface GuardrailStats {
   itemsDropped: number;
   /** Skills or project technologies not found in the original resume. */
   skillsRemoved: number;
-  /** Reworded texts replaced by the original because they introduced a new number. */
+  /** Reworded texts replaced by the original (new number or keyword, dropped number, commentary, job mention, headline). */
   textsRestored: number;
 }
 
@@ -113,6 +117,36 @@ const canonical = (value: unknown) =>
 /** Numbers as written ("200", "1.2", "5,000" → "5000"). */
 const numbersIn = (text: string) =>
   (text.match(/\d+(?:[.,]\d+)*/g) ?? []).map((token) => token.replaceAll(",", ""));
+
+/**
+ * Commentary about the candidate, tacked onto a statement of work: "…, which demonstrates the
+ * ability to…", "…, showcasing expertise in…", or a reference to the job posting itself. Weak
+ * models add these to every line. A resume line states what was done; it does not argue.
+ */
+const COMMENTARY = [
+  /\b(?:which|that|thereby|thus)\s+(?:demonstrat|showcas|highlight|align|reflect|illustrat|underscor|exemplif)\w*/i,
+  /\b(?:demonstrating|showcasing|highlighting|underscoring|illustrating|exemplifying)\s+(?:my|the|an?|strong|deep|proven|solid|expertise|experience|skills?|ability|proficiency|knowledge|commitment)\b/i,
+  /\bwhich\s+(?:shows?|proves?|indicates?|speaks\s+to)\b/i,
+  /\bleveraging\s+(?:my\s+)?(?:expertise|skills?|experience|knowledge|proficiency)\b/i,
+  /\bjob(?:'s)?\s+(?:description|requirements?|posting)\b/i,
+];
+const hasCommentary = (text: string) => COMMENTARY.some((pattern) => pattern.test(text));
+
+/**
+ * A reference to the job being applied for, inside the resume itself: "…, for this job.",
+ * "relevant to this role", "a fit for the target position" (D-105). Weak models copy such words
+ * from the prompt onto every line. A resume line is about the candidate's past work, so it never
+ * mentions the job it is sent to. Narrow on purpose ("this job", not "the job"): "the role of
+ * frontend lead" or "the checkout job queue" are plain statements of work.
+ */
+const JOB_REFERENCE = [
+  /\bthis\s+(?:job|role|position|posting|opening|opportunity|vacancy)\b/i,
+  /\b(?:the|this|a)\s+(?:target|desired|prospective)\s+(?:job|role|position|company|employer)\b/i,
+];
+const mentionsTheJob = (text: string) => JOB_REFERENCE.some((pattern) => pattern.test(text));
+/** True when the rewrite brings in a pattern that its original did not already have. */
+const adds = (test: (text: string) => boolean, original: string | undefined, tailored: string) =>
+  test(tailored) && !(original !== undefined && test(original));
 
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 /** "+" and "#" continue a name too: "C" is not found in "C++" or "C#". */
@@ -312,6 +346,32 @@ function safeText(
 }
 
 /**
+ * A reworded bullet point or detail must still be a statement of the same work (D-104): it keeps
+ * every number its original states, it does not add commentary about the candidate (D-104), and it
+ * does not mention the job being applied for (D-105). Any failure keeps the original text. (The
+ * summary is rewritten as a whole, so only the job-mention rule applies to it: `safeSummary`.)
+ */
+function safeItemText(run: Run, original: string, tailored: string, what: string): string {
+  if (tailored.trim() === "" || tailored === original) return original;
+  const kept = new Set(numbersIn(tailored));
+  const dropped = [...new Set(numbersIn(original))].filter((number) => !kept.has(number));
+  const problem =
+    dropped.length > 0
+      ? `left out a number from your resume (${listOf.format(dropped)})`
+      : adds(hasCommentary, original, tailored)
+        ? "added commentary about you instead of stating the work"
+        : adds(mentionsTheJob, original, tailored)
+          ? "mentioned the job you are applying for instead of stating the work"
+          : undefined;
+  if (problem) {
+    run.stats.textsRestored += 1;
+    run.warnings.push(`${what} ${problem}. The original wording was kept.`);
+    return original;
+  }
+  return safeText(run, original, tailored, what) as string;
+}
+
+/**
  * Bullet points and details: reworded, reordered or removed is fine; added is not. Matching by
  * id means the result can never have more items than the original.
  */
@@ -332,8 +392,8 @@ function keepKnownItems(
       continue;
     }
     originalTextById.delete(item.id);
-    const text = safeText(run, originalText, item.text, `A reworded line under "${owner}"`);
-    kept.push({ id: item.id, text: text as string });
+    const text = safeItemText(run, originalText, item.text, `A reworded line under "${owner}"`);
+    kept.push({ id: item.id, text });
   }
   if (added > 0) {
     run.stats.itemsDropped += added;
@@ -373,15 +433,49 @@ function keepSkillGroups(run: Run, groups: SkillGroup[]): SkillGroup[] {
     .filter((group) => group.items.length > 0);
 }
 
-function keepBasics(run: Run, original: Basics, tailored: Basics): Basics {
+/**
+ * The headline is a claim about who the candidate is, so a new one must be a job title the
+ * resume states, as written apart from letter case and spacing (D-104). "Data Analyst" is not
+ * "Data Analyst Intern". Otherwise the original headline (or none) is kept.
+ */
+function safeHeadline(run: Run, original: Basics, tailored: Basics, titles: Set<string>) {
+  const headline = safeText(run, original.headline, tailored.headline, "The new headline");
+  if (headline === undefined || headline === original.headline) return headline;
+  if (canonical(headline) === canonical(original.headline) || titles.has(canonical(headline))) {
+    return headline;
+  }
+  run.stats.textsRestored += 1;
+  run.warnings.push(
+    `The new headline ("${headline.trim()}") is not a job title from your resume. Your original headline was kept.`,
+  );
+  return original.headline;
+}
+
+/** The summary: the free-text rules, and no mention of the job being applied for (D-105). */
+function safeSummary(
+  run: Run,
+  original: string | undefined,
+  tailored: string | undefined,
+): string | undefined {
+  if (tailored !== undefined && tailored !== original && adds(mentionsTheJob, original, tailored)) {
+    run.stats.textsRestored += 1;
+    run.warnings.push(
+      "The new summary mentioned the job you are applying for instead of describing you. The original wording was kept.",
+    );
+    return original;
+  }
+  return safeText(run, original, tailored, "The new summary");
+}
+
+function keepBasics(run: Run, original: Basics, tailored: Basics, titles: Set<string>): Basics {
   reportLocked(
     run,
     changedFields(original, tailored, BASICS_LABELS),
     (fields) => `The AI changed your ${fields}. Your original contact details were kept.`,
   );
   const basics: Basics = { ...original };
-  const headline = safeText(run, original.headline, tailored.headline, "The new headline");
-  const summary = safeText(run, original.summary, tailored.summary, "The new summary");
+  const headline = safeHeadline(run, original, tailored, titles);
+  const summary = safeSummary(run, original.summary, tailored.summary);
   if (headline !== undefined) basics.headline = headline;
   if (summary !== undefined) basics.summary = summary;
   return basics;
@@ -463,7 +557,12 @@ export function applyGuardrails(
 ): GuardrailResult {
   const run = new Run(original, options.jobKeywords ?? []);
   const resume: Resume = {
-    basics: keepBasics(run, original.basics, tailored.basics),
+    basics: keepBasics(
+      run,
+      original.basics,
+      tailored.basics,
+      new Set(original.experience.map((job) => canonical(job.title))),
+    ),
     experience: keepEveryEntry(
       run,
       original.experience,

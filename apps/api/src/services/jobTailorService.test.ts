@@ -7,6 +7,7 @@ import { AppError } from "../lib/errors";
 import { FakeLlmClient } from "../llm/FakeLlmClient";
 import { TAILOR_PROMPT_VERSION, type TailorLlmOutput } from "../llm/prompts/tailor.v2";
 import { TAILOR_EFFORT, TAILOR_MAX_TOKENS, createJobTailorService } from "./jobTailorService";
+import { analyzeKeywords } from "./keywordService";
 
 const request = TailorRequestSchema.parse({
   resume: sampleResumeSwe,
@@ -85,7 +86,31 @@ describe("jobTailorService", () => {
       matched: ["React", "TypeScript", "Cypress", "performance"],
       missing: ["GraphQL", "Storybook"],
       matchScore: 67,
+      matchScoreBefore: 67,
     });
+  });
+
+  it("ignores keywords the job description does not contain, so the score cannot be flattered (D-104)", async () => {
+    // A model that lists the resume's own skills as "the job's keywords".
+    const flattering = { ...honest, keywords: ["React", "Redux", "Webpack", "Vite", "GraphQL"] };
+    const { service, rawLogs } = setup({ data: flattering });
+    const { keywordAnalysis } = await service.tailor(request);
+    // Redux, Webpack and Vite are in the resume but not in the job description.
+    expect(keywordAnalysis.matched).toEqual(["React"]);
+    expect(keywordAnalysis.missing).toEqual(["GraphQL"]);
+    expect(keywordAnalysis.matchScore).toBe(50);
+    expect(rawLogs()).toContain('"dropped":3');
+  });
+
+  it("reports the keyword score before tailoring next to the one after", async () => {
+    const { service } = setup({ data: honest });
+    const { keywordAnalysis } = await service.tailor(request);
+    expect(keywordAnalysis.matchScoreBefore).toBe(
+      analyzeKeywords(honest.keywords, request.resume).matchScore,
+    );
+    expect(keywordAnalysis.matchScore).toBeGreaterThanOrEqual(
+      keywordAnalysis.matchScoreBefore ?? 0,
+    );
   });
 
   it("builds the change list from what really changed", async () => {
@@ -151,7 +176,12 @@ describe("jobTailorService", () => {
 
     expect(result.tailoredResume).toEqual(sampleResumeSwe);
     expect(result.changes).toEqual([]);
-    expect(result.keywordAnalysis).toEqual({ matched: [], missing: [], matchScore: 0 });
+    expect(result.keywordAnalysis).toEqual({
+      matched: [],
+      missing: [],
+      matchScore: 0,
+      matchScoreBefore: 0,
+    });
   });
 
   it("calls the model once with the tailor prompt, medium effort and the tone", async () => {

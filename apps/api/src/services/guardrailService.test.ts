@@ -725,6 +725,198 @@ describe("applyGuardrails: job keywords in reworded text", () => {
   });
 });
 
+describe("applyGuardrails: a reworded line keeps its numbers (D-104)", () => {
+  const reword = (id: string, text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, id).text = text;
+    });
+
+  it("keeps the original bullet point when the rewording leaves out a number", () => {
+    // Original: "Mentored 3 junior engineers and ran weekly frontend guild meetings."
+    const result = applyGuardrails(
+      original,
+      reword("exp_1_b4", "Mentored junior engineers and ran weekly frontend guild meetings."),
+    );
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([
+      'A reworded line under "Senior Frontend Engineer at Brightpath Analytics" left out a number from your resume (3). The original wording was kept.',
+    ]);
+    expect(result.stats.textsRestored).toBe(1);
+  });
+
+  it("allows a rewording that keeps every number, in any order or spelling", () => {
+    const text = "Raised the Lighthouse performance score to 91, up from 54.";
+    const result = applyGuardrails(original, reword("exp_1_b5", text));
+    expect(byId(byId(result.resume.experience, "exp_1").bullets, "exp_1_b5").text).toBe(text);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("does not apply to the summary: a new summary need not repeat the old one's numbers", () => {
+    const tailored = tailoredWith((r) => {
+      r.basics.summary = "Frontend engineer who builds reliable web applications.";
+    });
+    const result = applyGuardrails(original, tailored);
+    expect(result.resume.basics.summary).toBe(
+      "Frontend engineer who builds reliable web applications.",
+    );
+    expect(result.warnings).toEqual([]);
+  });
+});
+
+describe("applyGuardrails: a reworded line states the work, without commentary (D-104)", () => {
+  const BULLET = "Improved Lighthouse performance score from 54 to 91";
+  const reword = (text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text = text;
+    });
+
+  it.each([
+    `${BULLET}, which demonstrates the ability to 'Build and ship features'.`,
+    `${BULLET}, which showcases the ability to 'Use AI tools responsibly'.`,
+    `${BULLET}, which aligns with the job's requirement to improve performance.`,
+    `${BULLET}, demonstrating expertise in frontend optimization.`,
+    `${BULLET}, showcasing expertise in frontend development and user experience.`,
+    `${BULLET}, highlighting strong performance skills.`,
+    `${BULLET}, leveraging expertise in frontend development.`,
+    `${BULLET}, as the job description asks.`,
+    `${BULLET}, which shows strong communication skills.`,
+  ])("keeps the original for: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([
+      'A reworded line under "Senior Frontend Engineer at Brightpath Analytics" added commentary about you instead of stating the work. The original wording was kept.',
+    ]);
+    expect(result.stats.textsRestored).toBe(1);
+  });
+
+  it.each([
+    "Improved frontend performance, raising the Lighthouse score from 54 to 91.",
+    "Raised the Lighthouse performance score from 54 to 91 by leveraging code splitting.",
+    "Demonstrated a Lighthouse performance improvement from 54 to 91 to the leadership team.",
+    "Built a report that shows the Lighthouse performance score rising from 54 to 91.",
+  ])("allows a plain statement of the work: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(byId(byId(result.resume.experience, "exp_1").bullets, "exp_1_b5").text).toBe(text);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("leaves a line alone when the commentary was already in the user's own resume", () => {
+    const own = tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text =
+        `${BULLET}, demonstrating expertise in performance.`;
+    });
+    const reworded = tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text =
+        `Raised the Lighthouse score from 54 to 91, demonstrating expertise in performance.`;
+    }, own);
+    expect(applyGuardrails(own, reworded).warnings).toEqual([]);
+  });
+});
+
+describe("applyGuardrails: a reworded line does not mention the job being applied for (D-105)", () => {
+  const BULLET = "Improved Lighthouse performance score from 54 to 91";
+  const reword = (text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text = text;
+    });
+
+  it.each([
+    `${BULLET} for this job.`,
+    `${BULLET}, relevant to this role.`,
+    `${BULLET}, as required by this position.`,
+    `${BULLET}, matching this posting.`,
+    `${BULLET}, a good fit for the target role.`,
+  ])("keeps the original for: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([
+      'A reworded line under "Senior Frontend Engineer at Brightpath Analytics" mentioned the job you are applying for instead of stating the work. The original wording was kept.',
+    ]);
+    expect(result.stats.textsRestored).toBe(1);
+  });
+
+  it.each([
+    "Improved frontend performance, raising the Lighthouse score from 54 to 91.",
+    "Raised the Lighthouse performance score from 54 to 91 for the checkout job queue.",
+    "Raised the Lighthouse performance score from 54 to 91 in the role of frontend lead.",
+  ])("allows a plain statement of the work: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(byId(byId(result.resume.experience, "exp_1").bullets, "exp_1_b5").text).toBe(text);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("leaves a line alone when the words were already in the user's own resume", () => {
+    const own = tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text =
+        `${BULLET}, the first goal set for this role.`;
+    });
+    const reworded = tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text =
+        `Raised the Lighthouse score from 54 to 91, the first goal set for this role.`;
+    }, own);
+    expect(applyGuardrails(own, reworded).warnings).toEqual([]);
+  });
+
+  it("keeps the original summary when the new one mentions the job", () => {
+    const result = applyGuardrails(
+      original,
+      tailoredWith((r) => {
+        r.basics.summary =
+          "Frontend engineer who builds React applications, a strong fit for this role.";
+      }),
+    );
+    expect(result.resume.basics.summary).toBe(original.basics.summary);
+    expect(result.warnings).toEqual([
+      "The new summary mentioned the job you are applying for instead of describing you. The original wording was kept.",
+    ]);
+    expect(result.stats.textsRestored).toBe(1);
+  });
+});
+
+describe("applyGuardrails: the headline is a job title from the resume (D-104)", () => {
+  const withHeadline = (headline: string, base: Resume = original) =>
+    tailoredWith((r) => {
+      r.basics.headline = headline;
+    }, base);
+
+  it("accepts a job title the candidate has held, whatever its letter case", () => {
+    const result = applyGuardrails(original, withHeadline("senior frontend engineer"));
+    expect(result.resume.basics.headline).toBe("senior frontend engineer");
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("keeps the original headline when the new one is not a held title", () => {
+    const result = applyGuardrails(original, withHeadline("Staff Platform Engineer"));
+    expect(result.resume.basics.headline).toBe(original.basics.headline);
+    expect(result.warnings).toEqual([
+      'The new headline ("Staff Platform Engineer") is not a job title from your resume. Your original headline was kept.',
+    ]);
+    expect(result.stats.textsRestored).toBe(1);
+  });
+
+  it("does not accept a held title with the level changed (Intern dropped)", () => {
+    const result = applyGuardrails(
+      sampleResumeNewGrad,
+      withHeadline("Data Analyst", sampleResumeNewGrad),
+    );
+    expect(result.resume.basics.headline).toBeUndefined();
+    expect(result.warnings).toHaveLength(1);
+    const kept = applyGuardrails(
+      sampleResumeNewGrad,
+      withHeadline("Data Analyst Intern", sampleResumeNewGrad),
+    );
+    expect(kept.resume.basics.headline).toBe("Data Analyst Intern");
+    expect(kept.warnings).toEqual([]);
+  });
+
+  it("leaves an unchanged headline alone, even if it is not a job title", () => {
+    const base = tailoredWith((r) => {
+      r.basics.headline = "Builder of fast web apps";
+    });
+    expect(applyGuardrails(base, structuredClone(base)).warnings).toEqual([]);
+  });
+});
+
 describe("applyGuardrails: general guarantees", () => {
   /** One model output that breaks every rule at once. */
   const everythingWrong = tailoredWith((r) => {

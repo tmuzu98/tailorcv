@@ -90,9 +90,9 @@ Estimates are in ideal dev-days (d).
 | AI-3 | Tailor prompt (`tailor-v2`: JD analysis + edits in one call) + `tailorEdits` (apply edits, change list) + `jobTailorService` (ADR-015) | AI | 1.5d | AI-1 |
 | AI-4 | `guardrailService`: locked-field restore, new-skill detection, no new or missing entries, bullet count, new-number check (D-89). Full unit tests | AI | 1d | SHR-1 |
 | BE-6 | `keywordService`: deterministic matched/missing/score (plurals, aliases, whole-word phrases) + unit tests | BE | 0.5d | SHR-1 |
-| BE-7 | `POST /api/v1/resumes/tailor` route + controller + integration tests | BE | 0.5d | AI-3, AI-4, BE-6 |
-| FE-5 | Job description page: textarea, char counter, validation, submit mutation | FE | 0.5d | FE-3 |
-| FE-6 | Multi-step progress indicator component | FE | 0.5d | — |
+| BE-7 | `POST /api/v1/resumes/tailor` route + controller + integration tests ✅ Day 15 | BE | 0.5d | AI-3, AI-4, BE-6 |
+| FE-5 | Job description page: textarea, char counter, validation, submit mutation ✅ Day 15 | FE | 0.5d | FE-3 |
+| FE-6 | Multi-step progress indicator component ✅ Day 15 | FE | 0.5d | — |
 | FE-7 | Result page: tailored resume preview + change list + keyword chips + warnings | FE | 1.5d | FE-4, BE-7 |
 
 **Demo:** the full flow up to preview.

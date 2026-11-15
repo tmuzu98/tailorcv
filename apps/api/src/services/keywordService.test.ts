@@ -8,7 +8,7 @@ import {
   sampleResumeSwe,
   sampleTailorResultSweFrontend,
 } from "@tailorcv/shared/fixtures";
-import { analyzeKeywords, normalizeForMatching } from "./keywordService";
+import { analyzeKeywords, keywordsFoundIn, normalizeForMatching } from "./keywordService";
 
 /** A small resume whose only free text is `text` (one bullet point) plus the given skills. */
 function resumeWith(text: string, skills: string[] = []): Resume {
@@ -274,5 +274,47 @@ describe("normalizeForMatching", () => {
     ["", ""],
   ])("%j → %j", (input, expected) => {
     expect(normalizeForMatching(input)).toBe(expected);
+  });
+});
+
+describe("keywordsFoundIn (only keywords the job description really contains, D-104)", () => {
+  const job = `Software Engineer. Design, build, and scale user-facing financial technology products.
+    Proficiency with full-stack development using technologies like React.js, Node.js, and TypeScript.
+    Experience with AI coding tools. Work with databases like MySQL or PostgreSQL, in C++ or Java.`;
+
+  it("keeps keywords written in the text, in any letter case or word form", () => {
+    expect(
+      keywordsFoundIn(["React.js", "typescript", "AI coding tools", "full-stack development"], job),
+    ).toEqual(["React.js", "typescript", "AI coding tools", "full-stack development"]);
+  });
+
+  it("keeps a keyword whose words are all in the text, even when not next to each other", () => {
+    expect(keywordsFoundIn(["user-facing products", "financial products"], job)).toEqual([
+      "user-facing products",
+      "financial products",
+    ]);
+  });
+
+  it("keeps a keyword written with a known alias", () => {
+    expect(keywordsFoundIn(["React", "Postgres", "artificial intelligence"], job)).toEqual([
+      "React",
+      "Postgres",
+      "artificial intelligence",
+    ]);
+  });
+
+  it("drops keywords the text never mentions (a model listing the resume's own skills)", () => {
+    expect(
+      keywordsFoundIn(["R Studio", "Cyber Security", "Flask", "Jira", "S3", "VS Code"], job),
+    ).toEqual([]);
+  });
+
+  it("drops a keyword when one of its words is missing, and whole words only", () => {
+    expect(keywordsFoundIn(["React Native", "JavaScript", "SQL", "C"], job)).toEqual([]);
+    expect(keywordsFoundIn(["Java", "C++", "MySQL"], job)).toEqual(["Java", "C++", "MySQL"]);
+  });
+
+  it("drops blanks", () => {
+    expect(keywordsFoundIn(["", "  ", "React.js"], job)).toEqual(["React.js"]);
   });
 });

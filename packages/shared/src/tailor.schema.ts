@@ -6,6 +6,20 @@ import { findDuplicateResumeIds } from "./resumeAdditions";
 
 export const JOB_DESCRIPTION_MIN_CHARS = 100;
 export const JOB_DESCRIPTION_MAX_CHARS = 15_000;
+/**
+ * Most text a resume in a tailor request may carry, all fields together. A dense 5-page resume
+ * is about 20,000 characters. Without a cap, one request could send ~200 KB of text to the AI
+ * (the JSON body limit), at many times the cost of a real resume.
+ */
+export const RESUME_MAX_TEXT_CHARS = 40_000;
+
+/** Total length of every text value in the resume (ids, dates and links included). */
+export function resumeTextLength(value: unknown): number {
+  if (typeof value === "string") return value.length;
+  if (Array.isArray(value)) return value.reduce<number>((sum, v) => sum + resumeTextLength(v), 0);
+  if (typeof value === "object" && value !== null) return resumeTextLength(Object.values(value));
+  return 0;
+}
 
 export const TONES = ["professional", "concise", "impactful"] as const;
 export const ToneSchema = z.enum(TONES);
@@ -27,6 +41,12 @@ export const TailorRequestSchema = z.object({
       ctx.addIssue({
         code: "custom",
         message: `Resume item ids must be unique (duplicated: ${duplicates.slice(0, 5).join(", ")})`,
+      });
+    }
+    if (resumeTextLength(resume) > RESUME_MAX_TEXT_CHARS) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Resume is too long: at most ${RESUME_MAX_TEXT_CHARS} characters of text`,
       });
     }
   }),
@@ -69,6 +89,8 @@ export const KeywordAnalysisSchema = z.object({
   matched: z.array(z.string()).describe("JD keywords present in the tailored resume"),
   missing: z.array(z.string()).describe("JD keywords not found in the resume"),
   matchScore: z.number().int().min(0).max(100),
+  /** The same score for the resume as submitted, before tailoring. */
+  matchScoreBefore: z.number().int().min(0).max(100).optional(),
 });
 
 export const JobSummarySchema = z.object({

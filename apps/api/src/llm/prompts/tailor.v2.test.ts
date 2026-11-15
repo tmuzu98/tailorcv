@@ -102,6 +102,24 @@ describe("TAILOR_SYSTEM_PROMPT", () => {
     expect(TAILOR_SYSTEM_PROMPT).toMatch(/without "I", "my" or "we"/);
   });
 
+  it("asks for clear typos and grammar mistakes to be corrected in every bullet (D-104)", () => {
+    expect(TAILOR_SYSTEM_PROMPT).toMatch(/always correct clear mistakes in spelling/i);
+    expect(TAILOR_SYSTEM_PROMPT).toMatch(/changing nothing else/i);
+    expect(TAILOR_SYSTEM_PROMPT).toContain('"Fixed a typo."');
+  });
+
+  it("gives the bullet text no phrase a model could copy into it (D-105)", () => {
+    const bullet = TailorLlmOutputSchema.shape.bullets.element.shape;
+    expect(bullet.text.description).toBeDefined();
+    expect(bullet.text.description).not.toMatch(/\b(?:this|the) (?:job|role|position)\b/i);
+    expect(TAILOR_SYSTEM_PROMPT).not.toMatch(/its text for this job/i);
+  });
+
+  it("forbids mentioning the job inside a bullet, and a reason that copies the bullet (D-105)", () => {
+    expect(TAILOR_SYSTEM_PROMPT).toMatch(/never mention the job, the role or the company/i);
+    expect(TAILOR_SYSTEM_PROMPT).toMatch(/never a copy of the bullet/i);
+  });
+
   it("lets a bullet stay as it is when rewording would not help (D-97)", () => {
     expect(TAILOR_SYSTEM_PROMPT).toMatch(/return its original text exactly/i);
     expect(TAILOR_SYSTEM_PROMPT).not.toMatch(/must not be a copy/i);

@@ -98,6 +98,16 @@ export function errorHandler(): ErrorRequestHandler {
         ...(appError.details && { details: appError.details }),
       },
     };
+    // Limits enforced outside express-rate-limit (the service-wide AI limits) carry the wait in
+    // their details only: give those the same Retry-After header.
+    const retryAfterSec = appError.details?.retryAfterSec;
+    if (
+      appError.code === "RATE_LIMITED" &&
+      typeof retryAfterSec === "number" &&
+      !res.getHeader("Retry-After")
+    ) {
+      res.setHeader("Retry-After", String(Math.ceil(retryAfterSec)));
+    }
     afterDrainingBody(req, res, () => res.status(appError.status).json(body));
   };
 }

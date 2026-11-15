@@ -37,8 +37,12 @@ export const TailorLlmOutputSchema = z.object({
         id: z.string().describe('The id of an existing bullet, e.g. "exp_1_b2"'),
         text: z
           .string()
-          .describe("The bullet reworded for this job (same facts), or its original text"),
-        reason: z.string().describe("Which job requirement the rewrite serves; empty if unchanged"),
+          .describe("The bullet's new wording (same facts), or its original text exactly"),
+        reason: z
+          .string()
+          .describe(
+            "A few words naming the job requirement the rewrite serves; empty if unchanged",
+          ),
       }),
     )
     .describe("Every bullet of every job and project, most relevant first within each job"),
@@ -71,13 +75,15 @@ HEADLINE AND SUMMARY
 
 BULLETS
 The resume lists bullets with ids, such as [exp_1_b2]. Build each job's bullets around this job description.
-- Return one entry for EVERY bullet of EVERY job and project, including older and less related jobs: the bullet's id, and its text for this job.
+- Return one entry for EVERY bullet of EVERY job and project, including older and less related jobs: the bullet's id and its text.
 - Reword a bullet only when that makes it match this job better: lead with the part of the work this job description cares about, and use the job description's own words where they truthfully describe the same work. A reworded bullet states the same facts as the original: same work, same tools, same results, same numbers.
 - If rewording would not make a bullet match this job better, return its original text exactly. Do not swap words for synonyms or move clauses around for the sake of change: the candidate reviews every change, and a change that adds nothing wastes their time. For a job that has little to do with the resume, most bullets stay as they are.
+- One exception: always correct clear mistakes in spelling, capitalization, grammar and punctuation, in every bullet, changing nothing else (for example "Optimized Seo strategies" becomes "Optimized SEO strategies", and "on time delivery" becomes "on-time delivery"). A resume with typos is rejected however well it matches. Do not treat a product name, an abbreviation or the candidate's own style as a mistake.
 - Write each bullet as a plain statement of the work, starting with an action verb. Never add commentary about the candidate: no endings such as "showcasing…", "demonstrating…", "highlighting…", "leveraging expertise in…". If the job's words do not truthfully fit a bullet, do not force them in.
+- Never mention the job, the role or the company being applied for inside a bullet (no "for this job", "relevant to this role"): a bullet describes past work only.
 - Never put a tool, technology or method from the job description into a bullet unless the original bullet or another part of the resume already names it.
 - Within each job, list the bullets most relevant to this job first.
-- reason: for a reworded bullet, one short sentence for the candidate that names the job requirement the rewrite serves. For a bullet returned as it is, an empty string.
+- reason: for a reworded bullet, one short sentence for the candidate that names the job requirement the rewrite serves. For a bullet where you only corrected a mistake, "Fixed a typo." or "Fixed the grammar.". For a bullet returned as it is, an empty string. The reason is never a copy of the bullet.
 - Use only ids that are in the resume. Never invent an id, never add a bullet, never merge or split bullets.
 - removedBulletIds: ids of bullets that do not matter for this job at all. Use it sparingly and never remove every bullet of a job. Usually it is empty.
 

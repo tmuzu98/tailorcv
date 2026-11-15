@@ -191,6 +191,7 @@ TailorResult = {
     matched: string[]            // JD keywords present in the tailored resume
     missing: string[]            // JD keywords the candidate cannot honestly claim
     matchScore: number           // 0-100, computed deterministically on the server
+    matchScoreBefore?: number    // the same score for the submitted resume (D-104)
   }
   jobSummary: { title?: string; company?: string; seniority?: string; topRequirements: string[] }
   warnings: string[]             // guardrail findings, e.g. "Possible new skill: Terraform"
@@ -245,9 +246,13 @@ TailorResult = {
    audience) and asks for every bullet of every job to be listed, most relevant first, and
    reworded around the job description only where that makes it match the job better;
    otherwise the original text is returned (D-93, D-97). The headline is a job title the
-   candidate has held.
+   candidate has held. Clear typos and grammar mistakes are corrected in every bullet (D-104).
    Structured output: TailorLlmOutputSchema through LlmClient.generateStructured (Claude: JSON
    schema from betaZodOutputFormat; Ollama: inlined JSON schema), validated by us (ADR-011)
+2a. keywordService.keywordsFoundIn(model keywords, jobDescription) → keywords (D-104): a keyword
+   is kept only if each of its words occurs in the job description (same normalization as the
+   matching). A weak model may list the resume's own skills as "the job's keywords", which
+   would make every keyword match. Steps 2b–4 use the filtered list.
 2b. tailorEdits.applyTailorEdits(original, edits, keywords) → { resume, reasons, stats }
    (deterministic). The tailored resume is the ORIGINAL plus: the new headline/summary;
    reworded bullet text by id (unknown, repeated or blank edits are ignored; bullets the model
@@ -258,6 +263,13 @@ TailorResult = {
    (deterministic, no AI, pure; implemented on Day 12, D-88/D-89). "original" = the resume in
    the request, user additions included (ADR-014). Items are matched by id and the result is
    built from the ORIGINAL entries, so only what the model may edit is taken from its answer:
+     - (D-104) A reworded bullet or detail that leaves out a number its original states, or
+       adds commentary about the candidate ("…, which demonstrates the ability to…",
+       "showcasing expertise in…", a reference to the job posting) → original text + warning.
+       (D-105) A reworded bullet, detail or summary that mentions the job being applied for
+       ("…for this job", "relevant to this role", "the target position") → original + warning.
+       A new headline that is not a job title from the resume (letter case aside) → original
+       headline + warning
      - Locked fields (LOCKED_FIELDS + name, email, phone, location, links, project name/link,
        section title) → always the original value; warning if the model changed one
        (a change in letter case or spacing only is restored without a warning)
@@ -292,6 +304,10 @@ TailorResult = {
 4b. tailorEdits.describeChanges(original, finalResume, reasons) → changes[]: every real
    difference between the original and the post-guardrail resume (reworded with before/after
    and the model's reason, reordered, removed). The model does not write the change list.
+   (D-105) The model's reason is used only when it is a reason: blank, longer than 30 words, or
+   containing the bullet's before/after text → a default reason. A change of only letter case,
+   punctuation or spacing gets the reason "Fixed spelling, capitalization or punctuation." and
+   is counted as `bulletsCorrected`, not `bulletsReworded` (the change type stays `reworded`).
 5. Return TailorResult + meta. One `resume tailored` log line with counts only (keyword
    score before/after, changes, warnings, edit and guardrail stats); never text or keywords
 ```
@@ -326,7 +342,8 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 - **Session store** (Day 9, React context, D-73): `{ parsed: ParseResponse | null, additions: ResumeAdditions, jobDescription, tailorResult: TailorResponse | null }` in `src/state/` (`sessionContext.ts`: context, types, storage helpers, `useSession`; `session.tsx`: `<SessionProvider>`). Mirrored to `sessionStorage` (`tailorcv.session.v1`) in try/catch, validated with the shared schemas on load (corrupt/old data is dropped). A new resume clears the old additions and tailoring result; changing the additions clears the tailoring result. A session stored before `additions` existed loads with none. Never sent anywhere.
 - **API layer** (Day 9, `src/api/`): `apiRequest(path, { schema, … })` validates success bodies with the shared schemas and throws one `ApiError` (`code`, `status`, `requestId`, `details`) for server errors and for browser-side `NETWORK_ERROR` / `BAD_RESPONSE` / `ABORTED`. `toFriendlyError()` (`errorMessages.ts`) maps every code to a title, message and next action (`retry` / `choose-file` / `edit-input` / `wait`), typed so a new code without copy fails to compile. TanStack Query provides mutation state; mutations never auto-retry.
 - **Routes**: `/` (upload) → `/review` → `/job` → `/result`. Route guards (`RequireSession`) send the user back to the first step whose data is missing (`/review`, `/job` need a parsed resume; `/result` needs a tailoring result).
-- **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE). Upload (Day 10): messages change at 8 s and 25 s (local models can take up to a minute), elapsed seconds, and a Cancel that aborts the request (the API then cancels the AI call).
+- **Loading UX**: a step indicator ("Reading your resume…", "Analyzing job description…", "Tailoring…"). It is time-based in MVP and becomes real streamed progress in Phase 2 (SSE). Upload (Day 10): messages change at 8 s and 25 s (local models can take up to a minute), elapsed seconds, and a Cancel that aborts the request (the API then cancels the AI call). Tailoring (Day 15): `features/job/StepProgress.tsx` lists three steps ("Analyzing job description…" → "Tailoring your resume…" → "Checking accuracy…"), the active one changing at 4 s and 12 s (`tailorSteps.ts`), with elapsed seconds, a note after 30 s, and Cancel.
+- **Job description page** (Day 15): `pages/JobDescriptionPage.tsx`: a textarea bound to the session's `jobDescription` (kept on refresh and when going back), a live counter of the trimmed length against the shared 100–15,000 limits, and a length check (`features/job/jobDescriptionChecks.ts`) that shows its message only after the first submit attempt. Submit sends `{ resume: applyResumeAdditions(parsed.resume, additions), jobDescription }` through `useTailorResume` (a mutation, never auto-retried); on success the result goes into the session and the app moves to `/result`. API errors use the friendly copy; a server `VALIDATION_ERROR` about `jobDescription` shows the server's field message.
 - **Upload page** (Day 10): choosing or dropping a file runs instant client checks with the shared `UPLOAD_LIMITS` (PDF by type or `.pdf` name, not empty, ≤ 5 MB) and then uploads right away; errors show `toFriendlyError()` copy, a "Try again" button only for retryable codes, and the request id as a reference; success stores the `ParseResponse` and navigates to `/review`.
 - **PDF export**: `<ResumeDocument resume={tailoredResume} template="classic" />` rendered with `@react-pdf/renderer`'s `pdf().toBlob()` and downloaded as `FirstName_LastName_<Company>.pdf`.
 - **Review page** (Day 11, D-84 → D-85): `features/resume-review/ResumeSummary.tsx` shows a **compact summary** of the parsed resume, not a resume look-alike: a Contact grid, then one line per job, school, project and certification (title · detail, dates), skills as one line per category, and the long text (bullet points, education details, the profile summary) folded into `<details>`. Section headings carry counts. The user can **add** what the PDF lacks: a missing headline/email/phone/location, skills (duplicates refused, case-insensitive), bullet points on an existing job, and certifications; each addition is marked "Added by you" and can be removed. The parsed resume is never edited: additions are kept separately in the session (`ResumeAdditions`) and merged with the shared, pure `applyResumeAdditions()` (fills only blank contact fields, appends an "Additional skills" group, gives new bullets/certifications the next free id). The page's counts line and "We couldn't find…" warning use the merged resume. **The tailor request (Day 15) must send the merged resume**; `TailorRequestSchema` rejects duplicate ids. Every value is plain text (resume links are never clickable). "Looks good, continue" → `/job`; "Upload a different file" clears the session → `/`. `features/resume-view/ResumeView.tsx` (full read-only resume) is kept for the tailored preview (Day 16).
@@ -339,12 +356,13 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 | API key exposure | `ANTHROPIC_API_KEY` exists only on the backend, loaded from env and validated at startup |
 | Malicious uploads | MIME type + magic-byte check, 5 MB limit, page limit, memory storage only, no shell-outs |
 | Abuse / cost blowup | `express-rate-limit`: 10 parses and 20 tailors per IP per hour (`RATE_LIMIT_PARSE_PER_HOUR` / `RATE_LIMIT_TAILOR_PER_HOUR`), applied per route family, in-memory store (single instance), `429 RATE_LIMITED` + `Retry-After`. `trust proxy` = `TRUST_PROXY` (1 on Render) so the real client IP is used. JSON body limit 200 KB → `413 PAYLOAD_TOO_LARGE` |
+| AI spend (D-101, D-102) | Before any call to the provider: per-IP rate limit → body ≤ 200 KB → schema (job description ≤ 15,000 chars, resume ≤ 40,000 chars of text, PDF ≤ 5 MB and ≤ 5 pages) → **service-wide limits** in `llm/withUsageLimits.ts` (`LLM_DAILY_CALL_LIMIT` 300 calls per UTC day, `LLM_MAX_CONCURRENT` 4 in flight; in memory, per process). Per call: `max_tokens` 16,000, 90 s timeout, overall deadline, cancelled when the client disconnects. Last line of defence: a spend limit in the provider console (to set, OD-10) |
 | PII in logs | Access log uses minimal serializers: `req {id, method, url without query}`, `res {statusCode}`, `responseTime`. No headers, query or body. pino `redact` as a second line of defence (auth/cookie headers, `body`, `*.resume`, `*.jobDescription`, `*.buffer`). Token usage is added on Day 7 |
 | Data retention | MVP stores nothing. The privacy note in the UI says so |
 | CORS | Exact allowlist from `CORS_ORIGIN` (comma-separated URLs, no wildcards, preview URLs not allowed), methods `GET, POST`, exposes `X-Request-Id` and `Retry-After` |
 | Headers | API: helmet defaults, `x-powered-by` disabled. Frontend host: strict CSP (Day 24) |
 | Dependency risk | `npm audit` in CI, Dependabot |
-| Prompt injection | Delimited inputs + deterministic guardrails (§6.2 step 3) |
+| Prompt injection | Resume and job description are sent as delimited data (our delimiter tags are stripped from user text) with an instruction to ignore instructions inside them. The model has no tools and returns schema-checked JSON only, so injected text cannot trigger an action. Its edits are applied by id to the original resume and checked by the deterministic guardrails (§6.2 step 3). Output is shown as plain text; links are never clickable |
 
 ## 8. Error handling strategy
 
@@ -375,6 +393,8 @@ Prompts live in `apps/api/src/llm/prompts/*.ts` as versioned template functions 
 | `RATE_LIMIT_TAILOR_PER_HOUR` | `20` | no |
 | `LLM_TIMEOUT_MS` | `90000` | no |
 | `LLM_DEADLINE_MS` | `120000` (anthropic) / `300000` (ollama) | no (default depends on `LLM_PROVIDER`) |
+| `LLM_PROVIDER_SWITCH` | `false` | no. **Development only, temporary (D-103):** `true` builds both providers and lets a request choose one with `X-LLM-Provider`; the web app then shows "Local model / Claude" buttons in the header. Production refuses it. Removed before the production deploy |
+| `LLM_DAILY_CALL_LIMIT` · `LLM_MAX_CONCURRENT` | `300` · `4` | no (service-wide AI limits, D-101) |
 | `LLM_PROVIDER` | `ollama` / `anthropic` | no (default `ollama` in development/test, `anthropic` in production; production refuses `ollama`) |
 | `OLLAMA_BASE_URL` · `OLLAMA_MODEL` · `OLLAMA_TIMEOUT_MS` · `OLLAMA_NUM_CTX` | `http://localhost:11434` · `llama3` · `300000` · `8192` | no (local development only) |
 | `LOG_LEVEL` | `info` | no |

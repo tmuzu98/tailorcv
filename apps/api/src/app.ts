@@ -6,11 +6,13 @@ import { API_PREFIX } from "@tailorcv/shared";
 import type { Env } from "./config/env";
 import type { LlmClient } from "./llm";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { llmProviderChoice } from "./middleware/llmProvider";
 import { REQUEST_ID_HEADER, requestId } from "./middleware/requestId";
 import { createRateLimiters } from "./middleware/rateLimit";
 import { requestLogger } from "./middleware/requestLogger";
-import { healthRouter } from "./routes/health";
+import { createHealthRouter } from "./routes/health";
 import { createResumesRouter } from "./routes/resumes";
+import { createJobTailorService } from "./services/jobTailorService";
 import { createResumeParserService } from "./services/resumeParserService";
 
 export const JSON_BODY_LIMIT = "200kb";
@@ -18,7 +20,13 @@ export const JSON_BODY_LIMIT = "200kb";
 export interface AppDeps {
   env: Pick<
     Env,
-    "CORS_ORIGIN" | "TRUST_PROXY" | "RATE_LIMIT_PARSE_PER_HOUR" | "RATE_LIMIT_TAILOR_PER_HOUR"
+    | "CORS_ORIGIN"
+    | "TRUST_PROXY"
+    | "RATE_LIMIT_PARSE_PER_HOUR"
+    | "RATE_LIMIT_TAILOR_PER_HOUR"
+    | "LLM_PROVIDER"
+    | "LLM_PROVIDER_SWITCH"
+    | "ANTHROPIC_API_KEY"
   >;
   logger: Logger;
   /** Built by createLlmClient(env) in server.ts (LLM_PROVIDER); tests pass a FakeLlmClient. */
@@ -51,9 +59,20 @@ export function createApp({ env, logger, llm }: AppDeps): Express {
   );
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  app.use(API_PREFIX, healthRouter);
+  // DEVELOPMENT ONLY, TEMPORARY (D-103): a request may choose the provider. Never in production
+  // (env.ts refuses the flag there). Remove before the production deploy.
+  if (env.LLM_PROVIDER_SWITCH) app.use(llmProviderChoice());
+  const llmSwitch = env.LLM_PROVIDER_SWITCH
+    ? {
+        default: env.LLM_PROVIDER,
+        // Claude can only be chosen when a key is configured (the key itself never leaves here).
+        available: [...(env.ANTHROPIC_API_KEY ? (["anthropic"] as const) : []), "ollama" as const],
+      }
+    : undefined;
+  app.use(API_PREFIX, createHealthRouter(llmSwitch));
   const parser = createResumeParserService({ llm, logger });
-  app.use(API_PREFIX, createResumesRouter({ limiters: createRateLimiters(env), parser }));
+  const tailor = createJobTailorService({ llm, logger });
+  app.use(API_PREFIX, createResumesRouter({ limiters: createRateLimiters(env), parser, tailor }));
 
   app.use(notFoundHandler());
   app.use(errorHandler());
