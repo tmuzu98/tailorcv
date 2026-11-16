@@ -143,11 +143,14 @@ export function applyTailorEdits(
   return { resume, reasons, stats };
 }
 
+/** The reason given to a change of only letter case, punctuation or spacing (D-105). */
+export const CORRECTION_REASON = "Fixed spelling, capitalization or punctuation.";
+
 const DEFAULT_REASONS = {
   headline: "Headline set to a job title from your resume.",
   summary: "Summary rewritten around what this job asks for.",
   reworded: "Reworded to match the job description.",
-  corrected: "Fixed spelling, capitalization or punctuation.",
+  corrected: CORRECTION_REASON,
   reordered: "Most relevant points moved to the top.",
   removed: "Left out because it is less relevant to this job.",
   skills: "Skills this job asks for come first.",

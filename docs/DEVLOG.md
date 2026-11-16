@@ -14,21 +14,21 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-16 (Session 17, part 2) |
+| Last updated | 2026-11-16 (Session 17, part 3) |
 | Phase | Phase 1 (MVP). **Milestone 1.3 (tailoring) complete** (Day 17), with one open item: the user's click-through in the browser |
 | Current day (per `07-daily-development-plan.md`) | **Day 17 ✅** (3×3 API run, one bug fixed, security review). Next: **Day 18, PDF template (part 1)**, after the tailoring quality pass |
 | Branch | `main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `5571104 feat(web): result page with changes and keyword tabs (Day 16)` (pushed, CI green). Day 17 is uncommitted until the user says so |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **666 tests**: shared 71, web 127, api 468). CI now also runs `npm audit --omit=dev --audit-level=high` (0 vulnerabilities locally) |
+| Last commit | `db101fe feat: Milestone 1.3 demo fixes and security review (Day 17)` (pushed, CI green incl. the new audit step). The `tailor:eval` work is uncommitted |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **690 tests**: shared 71, web 127, api 492). CI now also runs `npm audit --omit=dev --audit-level=high` (0 vulnerabilities locally) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
 | Local dev | `apps/api/.env`: `LLM_PROVIDER=ollama`, `LLM_PROVIDER_SWITCH=true` (header buttons "Local model / Claude", D-103, temporary), the Claude key in place. `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. Ask the user before any Claude call |
 
-**Next action (start of the next session):** the tailoring quality pass the user agreed to do after Day 16 (`tailor:eval` over the 6 fixture pairs on `llama3`, a quality log). Then Day 18 (PDF template).
+**Next action (start of the next session):** the first evidence-backed quality change. The baseline (`docs/quality-log.md`) says the biggest problem is filler on rewrites (15 of 19 warnings are `commentary`; 6 of 48 bullets reworded). Change the prompt, rerun `tailor:eval`, keep it only if the numbers improve. Then Day 18 (PDF template).
 
 **Next steps (in order)**
 1. **User:** click through upload → result in the browser once (the Day 16/17 checks: header, preview, Changes and Keywords tabs, "Add it on the review page", the new footer wording).
-2. **Tailoring quality pass:** `tailor:eval` on `llama3`, a quality log, one evidence-backed change a day. Day 17 showed `llama3` adds commentary to every rewrite, so most runs end with 0 changes (Known Issue #10).
+2. **Tailoring quality pass:** `tailor:eval` is built (D-109); baseline logged. One evidence-backed change at a time, starting with `commentary`. Claude runs only on prompt changes and only when the user says so.
 3. **Day 18:** PDF template (part 1).
 4. **Open question for the user:** a "Your tailored resume" title on the preview and/or highlighting reworded bullets (Parking Lot).
 5. **Live check of D-104 + D-105** in the browser (Local model, then Claude if the user approves).
@@ -165,6 +165,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-15 | D-106 | **Competitor research is kept apart from the project docs, for after the MVP.** A top-level `research/` folder (first note: `research/nextraise-ai.md`). It changes no scope; ideas from it go through the Parking Lot → decision flow when the MVP is done | The user's request: "for knowledge purpose", "come back to this once we have our MVP ready" | `research/` |
 | 2026-11-16 | D-107 | **Result page (Day 16): no `corrected` change type; tabs for the details; "Start over" left for FE-9.** Typo-only fixes stay type `reworded`, shown with the reason "Fixed spelling, capitalization or punctuation." (no shared schema change). The page shows the tailored resume beside a panel with two tabs, Changes (grouped by section, before → after, reason; a reorder shows the moved item by `targetId`) and Keywords (score before → after, matched and missing chips, "Add it on the review page"). The result page gets only "Change job description" for now; "Start over" / "Tailor for another job" are FE-9 (Day 19) | A new change type would change the shared schema, the API spec and the model's contract for a label the reason already gives; the plan puts FE-9 on Day 19 | Tech Design §6.4, `apps/web/src/features/result/` |
 | 2026-11-16 | D-108 | **Security review (Day 17): dependency checks added, privacy wording made honest.** (1) CI runs `npm audit --omit=dev --audit-level=high` after install (runtime deps only, fails on high/critical; the accepted dev-only moderate findings stay out). (2) `.github/dependabot.yml`: weekly npm update PRs grouped into dev / production minor+patch, plus GitHub Actions. (3) Footer: "Your resume is sent to an AI provider to be read and tailored. TailorCV does not store it." (was "processed and not stored", which hid that the resume leaves our server). Reviewed and unchanged: helmet, CORS allowlist, rate limit before the upload is read, body/file/page/text limits, magic-byte check, memory-only storage, errors that never echo input, count-only logs with redaction, safe request ids, production refusing `ollama`/the switch/no key, spend limits, abort on disconnect; frontend renders all model and resume text as plain text (no `innerHTML`, no links), validates every response with the shared schema, keeps the session in `sessionStorage` behind try/catch. Left for Day 24: CSP on the frontend host; removing the provider switch | The user asked to make sure the API and frontend follow the security principles; Known Issue #7 had been open since Day 5; the old footer was inaccurate once a hosted provider is used | `.github/`, `AppLayout.tsx`, Tech Design §7 |
+| 2026-11-16 | D-109 | **Tailoring quality eval as a local script with a committed, counts-only log.** `npm run tailor:eval -w @tailorcv/api`: the 6 synthetic fixture pairs through `jobTailorService`, one by one, on `llama3` by default (Claude only with `--provider anthropic`, billed, ask first). Per pair: bullets reworded (typo-only fixes counted apart, by the shared `CORRECTION_REASON`), summary/headline changed, score before → after, title/company found against the posting's first line, warnings by guardrail rule (classified from the guardrails' fixed wording; unknown wording shows as `other`), time. Raw answers saved to `apps/api/.eval-runs/` (git-ignored) for `--replay` (free, deterministic rerun through changed code). `--log "<note>"` appends a row to `docs/quality-log.md`. Logic in `src/eval/tailorEval.ts`, unit-tested with `FakeLlmClient`; never in CI | Agreed in Session 16 ("daily tailoring quality pass"), built after Day 17 as the user asked. Counts make prompt changes comparable without reading resume text; replays make rule changes checkable for free | `apps/api/src/eval/`, `apps/api/scripts/tailor-eval.ts`, `docs/quality-log.md`, Dev Guide |
 
 ---
 
@@ -982,6 +983,24 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none blocking. `llama3` output quality (Known Issue #10) is accepted for development.
 **Exit check met?** Yes: no known blocking bugs. Open: the user's browser click-through.
 **Next session:** tailoring quality pass, then Day 18.
+
+### 2026-11-16: Session 17, part 3 (tailoring quality eval)
+**Day:** between 17 ✅ and 18
+**Done**
+- Day 17 committed and pushed (`db101fe`); CI green, including the new "Audit production dependencies" step. Dependabot's first run succeeded.
+- `tailor:eval` built (D-109): `src/eval/tailorEval.ts` (pairs, warning rules, counts, summary, table, log row), `scripts/tailor-eval.ts` (CLI: `--log`, `--replay`, `--provider`), `CORRECTION_REASON` exported from `tailorEdits.ts`, `.eval-runs/` git-ignored, `docs/quality-log.md` created.
+- Tests: 25 new (api 468 → **492**, total **690**). One test was wrong at first (it counted job bullets only; the fixture also has project bullets) and was fixed.
+- **Baseline on `llama3`** (logged): 6/6 ran, 6 of 48 bullets reworded, 0 typo fixes, summaries 3/6, score avg 22 → 22, titles 5/6, companies 1/6, 19 warnings (commentary 15, missingKeyword 4), avg 22 s.
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 690 tests).
+- Replay of the saved baseline gives the same counts with no model call; a wrong replay path stops with a clear error (first version resolved the path from the repo root and found nothing; fixed).
+- Deliberate break (D-33): 6 breaks (commentary rule gone, typo fixes counted as rewrites, one failure stopping the run, failed pairs in the totals, any company counted as found, answers not saved). The first round missed "any company counts as found"; the test now also checks a wrong company. All 6 fail at least one test.
+
+**Decisions:** D-109.
+**Doc-sync audit (D-52):** Dev Guide (scripts), README (scripts table), CLAUDE.md docs map (`docs/quality-log.md`), DEVLOG (status, D-109). No schema or API change; `.env.example` unchanged.
+**Issues / blockers:** none.
+**Next session:** first quality change (commentary), then Day 18.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):

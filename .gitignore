@@ -34,3 +34,6 @@ npm-debug.log*
 
 # Never commit real resumes (synthetic fixtures live in tests/fixtures and are allowed)
 uploads/
+
+# Raw model answers saved by `npm run tailor:eval` (for --replay); local only
+.eval-runs/

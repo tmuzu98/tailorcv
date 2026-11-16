@@ -28,6 +28,7 @@ AI resume-tailoring web app ("TailorCV", working name): upload a PDF resume + pa
 - `docs/05-development-guide.md`: conventions and git workflow
 - `docs/06-architecture-decisions.md`: ADRs
 - `docs/07-daily-development-plan.md`: day-by-day plan
+- `docs/quality-log.md`: tailoring quality eval results, counts only (`npm run tailor:eval`)
 - `docs/DEVLOG.md`: running journal (source of truth for "where are we")
 
 ## Hard rules

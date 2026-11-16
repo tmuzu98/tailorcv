@@ -35,12 +35,13 @@ npm run dev
 
 **API workspace scripts** (run with `-w @tailorcv/api`):
 
-| Command                                  | What it does                                                                                                                                                      |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run llm:smoke -w @tailorcv/api`     | One tiny real call through the selected `LLM_PROVIDER` (checks Ollama or your Claude key)                                                                         |
-| `npm run parse:pdf -w @tailorcv/api`     | Runs the test PDFs (or `-- ~/your.pdf [--json]`) through the real parse pipeline and scores accuracy. Local only, nothing stored                                  |
-| `npm run tailor:run -w @tailorcv/api`    | Runs a synthetic resume × job description (or `-- ~/resume.json ~/jd.txt`) through the tailor prompt, guardrails and keyword analysis. Local only, nothing stored |
-| `npm run fixtures:pdfs -w @tailorcv/api` | Regenerates the synthetic test PDFs (output is committed)                                                                                                         |
+| Command                                  | What it does                                                                                                                                                                                                                |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run llm:smoke -w @tailorcv/api`     | One tiny real call through the selected `LLM_PROVIDER` (checks Ollama or your Claude key)                                                                                                                                   |
+| `npm run parse:pdf -w @tailorcv/api`     | Runs the test PDFs (or `-- ~/your.pdf [--json]`) through the real parse pipeline and scores accuracy. Local only, nothing stored                                                                                            |
+| `npm run tailor:run -w @tailorcv/api`    | Runs a synthetic resume × job description (or `-- ~/resume.json ~/jd.txt`) through the tailor prompt, guardrails and keyword analysis. Local only, nothing stored                                                           |
+| `npm run tailor:eval -w @tailorcv/api`   | Tailoring quality eval: the 6 synthetic pairs on local `llama3`, counts per pair (`-- --log "<note>"` adds a row to `docs/quality-log.md`, `-- --replay .eval-runs/<run>` reruns saved answers without a model). Local only |
+| `npm run fixtures:pdfs -w @tailorcv/api` | Regenerates the synthetic test PDFs (output is committed)                                                                                                                                                                   |
 
 ## Project layout
 
