@@ -18,7 +18,7 @@ import {
 const logger = pino({ level: "silent" });
 const [b1, b2, b3] = sampleResumeSwe.experience[0]!.bullets;
 
-/** A model answer for sampleResumeSwe: one honest rewrite, one typo-only fix, one with filler. */
+/** A model answer for sampleResumeSwe: one honest rewrite, one typo-only fix, one with mid-line filler (rejected). */
 const answer = (over: Partial<TailorLlmOutput> = {}): TailorLlmOutput => ({
   jobSummary: {
     title: "Senior Frontend Engineer",
@@ -33,7 +33,7 @@ const answer = (over: Partial<TailorLlmOutput> = {}): TailorLlmOutput => ({
     { id: b2!.id, text: b2!.text.toUpperCase(), reason: "Case." },
     {
       id: b3!.id,
-      text: `${b3!.text.replace(/\.$/, "")}, which demonstrates strong leadership.`,
+      text: `${b3!.text.replace(/\.$/, "")}, which demonstrates leadership, across the company.`,
       reason: "Leadership.",
     },
   ],

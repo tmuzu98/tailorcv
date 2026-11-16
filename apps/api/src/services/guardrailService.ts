@@ -57,6 +57,8 @@ export interface GuardrailStats {
   skillsRemoved: number;
   /** Reworded texts replaced by the original (new number or keyword, dropped number, commentary, job mention, headline). */
   textsRestored: number;
+  /** Reworded lines kept after cutting trailing commentary or a note the model wrote about itself (D-110). */
+  fillerTrimmed: number;
 }
 
 export interface GuardrailResult {
@@ -125,12 +127,43 @@ const numbersIn = (text: string) =>
  */
 const COMMENTARY = [
   /\b(?:which|that|thereby|thus)\s+(?:demonstrat|showcas|highlight|align|reflect|illustrat|underscor|exemplif)\w*/i,
-  /\b(?:demonstrating|showcasing|highlighting|underscoring|illustrating|exemplifying)\s+(?:my|the|an?|strong|deep|proven|solid|expertise|experience|skills?|ability|proficiency|knowledge|commitment)\b/i,
+  /\b(?:demonstrating|showcasing|highlighting|underscoring|illustrating|exemplifying)\s+(?:my|the|an?|strong|deep|proven|solid|expertise|experience|skills?|ability|abilities|proficiency|knowledge|commitment|attention|dedication|aptitude|capacity|capabilit(?:y|ies)|competenc(?:e|y|ies)|understanding|familiarity|passion|versatility|adaptability)\b/i,
   /\bwhich\s+(?:shows?|proves?|indicates?|speaks\s+to)\b/i,
   /\bleveraging\s+(?:my\s+)?(?:expertise|skills?|experience|knowledge|proficiency)\b/i,
   /\bjob(?:'s)?\s+(?:description|requirements?|posting)\b/i,
 ];
 const hasCommentary = (text: string) => COMMENTARY.some((pattern) => pattern.test(text));
+
+/**
+ * Commentary as the last clause of a line (D-110): a separator (comma, semicolon, dash, or just a
+ * space before "which"/"thereby"/"thus"), a lead-in word, then no comma or full stop up to the
+ * end. Only this shape is cut, so the cut can never take a fact that comes after the filler; the
+ * clause must also be commentary by the rules above ("…, which cut costs by 20%" is not).
+ */
+const TRAILING_FILLER =
+  /(?:[,;]|\s[-\u2013\u2014]|(?=\s+(?:which|thereby|thus)\b))\s*((?:which|that|thereby|thus|demonstrating|showcasing|highlighting|underscoring|illustrating|exemplifying|reflecting|matching|aligning|aligned|in line|meeting|leveraging|as)\b[^,.;]*)\.?\s*$/i;
+
+/** A note the model wrote about its own edit, at the end of a line: "(No reason provided.)". */
+const MODEL_NOTE =
+  /\s*\((?:no\s+)?(?:reason|reasons|change|changes|edit|edits|note|unchanged|original)\b[^)]*\)\s*$/i;
+
+/**
+ * The rewrite without what a weak model tacks on (D-110): a note about its own edit, then a
+ * trailing commentary clause, when the original line did not have them. Only words are taken
+ * away, never added; what is left goes through every other check like any rewrite.
+ */
+function withoutAddedFiller(original: string, tailored: string): string {
+  let text = tailored;
+  if (MODEL_NOTE.test(text) && !MODEL_NOTE.test(original)) {
+    text = text.replace(MODEL_NOTE, "");
+  }
+  const filler = TRAILING_FILLER.exec(text);
+  if (filler?.[1] && hasCommentary(filler[1]) && !hasCommentary(original)) {
+    const rest = text.slice(0, filler.index).replace(/[\s,;:\u2013\u2014-]+$/, "");
+    text = rest === "" ? tailored : `${rest}${/[.!?]$/.test(original.trim()) ? "." : ""}`;
+  }
+  return text;
+}
 
 /**
  * A reference to the job being applied for, inside the resume itself: "…, for this job.",
@@ -199,6 +232,7 @@ class Run {
     itemsDropped: 0,
     skillsRemoved: 0,
     textsRestored: 0,
+    fillerTrimmed: 0,
   };
   private readonly text: string;
   private readonly numbers: Set<string>;
@@ -351,8 +385,10 @@ function safeText(
  * does not mention the job being applied for (D-105). Any failure keeps the original text. (The
  * summary is rewritten as a whole, so only the job-mention rule applies to it: `safeSummary`.)
  */
-function safeItemText(run: Run, original: string, tailored: string, what: string): string {
-  if (tailored.trim() === "" || tailored === original) return original;
+function safeItemText(run: Run, original: string, rewrite: string, what: string): string {
+  if (rewrite.trim() === "" || rewrite === original) return original;
+  const tailored = withoutAddedFiller(original, rewrite);
+  if (tailored !== rewrite) run.stats.fillerTrimmed += 1;
   const kept = new Set(numbersIn(tailored));
   const dropped = [...new Set(numbersIn(original))].filter((number) => !kept.has(number));
   const problem =

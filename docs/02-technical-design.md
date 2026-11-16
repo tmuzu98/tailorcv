@@ -266,6 +266,13 @@ TailorResult = {
      - (D-104) A reworded bullet or detail that leaves out a number its original states, or
        adds commentary about the candidate ("…, which demonstrates the ability to…",
        "showcasing expertise in…", a reference to the job posting) → original text + warning.
+       (D-110) First, what a weak model tacks on is cut, when the original line did not have
+       it: a note about its own edit at the end ("(No reason provided.)", "(unchanged)"), and a
+       trailing commentary clause (a separator, a lead-in such as "which", "showcasing",
+       "matching", then no comma or full stop to the end, and the clause is commentary by the
+       rules above). What is left goes through every check here like any rewrite; it is often
+       the original text again (no change, no warning). Commentary anywhere else in the line →
+       original + warning, as before. Counted as `fillerTrimmed` in the stats.
        (D-105) A reworded bullet, detail or summary that mentions the job being applied for
        ("…for this job", "relevant to this role", "the target position") → original + warning.
        A new headline that is not a job title from the resume (letter case aside) → original

@@ -49,6 +49,7 @@ const NO_FINDINGS = {
   itemsDropped: 0,
   skillsRemoved: 0,
   textsRestored: 0,
+  fillerTrimmed: 0,
 };
 
 describe("applyGuardrails: honest output passes untouched", () => {
@@ -780,8 +781,20 @@ describe("applyGuardrails: a reworded line states the work, without commentary (
     `${BULLET}, leveraging expertise in frontend development.`,
     `${BULLET}, as the job description asks.`,
     `${BULLET}, which shows strong communication skills.`,
-  ])("keeps the original for: %s", (text) => {
+    `${BULLET}, showcasing attention to detail and dedication.`,
+  ])("cuts the trailing commentary and keeps the rest (D-110): %s", (text) => {
+    // What is left is the original bullet, so nothing changed and nothing needs a warning.
     const result = applyGuardrails(original, reword(text));
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([]);
+    expect(result.stats).toEqual({ ...NO_FINDINGS, fillerTrimmed: 1 });
+  });
+
+  it("still keeps the original when the commentary is in the middle of the line", () => {
+    const result = applyGuardrails(
+      original,
+      reword("Improved, which demonstrates strong skills, the Lighthouse score from 54 to 91."),
+    );
     expect(result.resume).toEqual(original);
     expect(result.warnings).toEqual([
       'A reworded line under "Senior Frontend Engineer at Brightpath Analytics" added commentary about you instead of stating the work. The original wording was kept.',
@@ -794,6 +807,7 @@ describe("applyGuardrails: a reworded line states the work, without commentary (
     "Raised the Lighthouse performance score from 54 to 91 by leveraging code splitting.",
     "Demonstrated a Lighthouse performance improvement from 54 to 91 to the leadership team.",
     "Built a report that shows the Lighthouse performance score rising from 54 to 91.",
+    "Raised the Lighthouse performance score from 54 to 91, highlighting key risks to leadership.",
   ])("allows a plain statement of the work: %s", (text) => {
     const result = applyGuardrails(original, reword(text));
     expect(byId(byId(result.resume.experience, "exp_1").bullets, "exp_1_b5").text).toBe(text);
@@ -810,6 +824,111 @@ describe("applyGuardrails: a reworded line states the work, without commentary (
         `Raised the Lighthouse score from 54 to 91, demonstrating expertise in performance.`;
     }, own);
     expect(applyGuardrails(own, reworded).warnings).toEqual([]);
+  });
+});
+
+describe("applyGuardrails: trailing filler is cut and the rewrite kept (D-110)", () => {
+  const owner = "Senior Frontend Engineer at Brightpath Analytics";
+  const reword = (text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text = text;
+    });
+  const textOf = (resume: Resume) =>
+    byId(byId(resume.experience, "exp_1").bullets, "exp_1_b5").text;
+  const REWRITE = "Improved frontend performance, raising the Lighthouse score from 54 to 91";
+
+  it.each([
+    `${REWRITE}, which demonstrates expertise in improving frontend performance.`,
+    `${REWRITE}, showcasing attention to detail and ability to work efficiently.`,
+    `${REWRITE}, matching the job's requirements for React and TypeScript expertise.`,
+    `${REWRITE}, which aligns with the job's requirement for patient-facing web experiences.`,
+    `${REWRITE} which demonstrates strong performance skills.`,
+    `${REWRITE} - highlighting the ability to improve performance.`,
+  ])("keeps the honest rewrite without its filler: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(textOf(result.resume)).toBe(`${REWRITE}.`);
+    expect(result.warnings).toEqual([]);
+    expect(result.stats).toEqual({ ...NO_FINDINGS, fillerTrimmed: 1 });
+  });
+
+  it("checks what is left like any rewrite: a dropped number still keeps the original", () => {
+    const result = applyGuardrails(
+      original,
+      reword("Improved the Lighthouse performance score, demonstrating expertise in reaching 91."),
+    );
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([
+      `A reworded line under "${owner}" left out a number from your resume (54 and 91). The original wording was kept.`,
+    ]);
+  });
+
+  it("checks what is left like any rewrite: a missing keyword still keeps the original", () => {
+    const result = applyGuardrails(
+      original,
+      reword(`${REWRITE} with GraphQL, showcasing expertise in performance.`),
+      { jobKeywords: ["GraphQL"] },
+    );
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([
+      `A reworded line under "${owner}" mentioned something the job asks for that is not in your resume (GraphQL). The original wording was kept.`,
+    ]);
+  });
+
+  it("does not cut a plain clause that only looks like a lead-in", () => {
+    const text = `${REWRITE}, which cut support tickets for the dashboard team.`;
+    const result = applyGuardrails(original, reword(text));
+    expect(textOf(result.resume)).toBe(text);
+    expect(result.stats.fillerTrimmed).toBe(0);
+  });
+
+  it("keeps the user's own trailing commentary (it was in their resume)", () => {
+    const own = tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text =
+        "Improved Lighthouse performance score from 54 to 91, demonstrating expertise in performance.";
+    });
+    const text =
+      "Raised the Lighthouse performance score from 54 to 91, demonstrating expertise in performance.";
+    const result = applyGuardrails(own, reword(text));
+    expect(textOf(result.resume)).toBe(text);
+    expect(result.stats.fillerTrimmed).toBe(0);
+  });
+});
+
+describe("applyGuardrails: notes the model writes about itself are removed (D-110)", () => {
+  const reword = (text: string) =>
+    tailoredWith((r) => {
+      byId(byId(r.experience, "exp_1").bullets, "exp_1_b5").text = text;
+    });
+  const textOf = (resume: Resume) =>
+    byId(byId(resume.experience, "exp_1").bullets, "exp_1_b5").text;
+  const BULLET = "Improved Lighthouse performance score from 54 to 91.";
+
+  it.each([
+    `${BULLET} (No reason provided.)`,
+    `${BULLET} (no change)`,
+    `${BULLET} (Unchanged)`,
+    `${BULLET} (original text)`,
+    `${BULLET} (No changes needed.)`,
+  ])("removes the note and keeps the original: %s", (text) => {
+    const result = applyGuardrails(original, reword(text));
+    expect(result.resume).toEqual(original);
+    expect(result.warnings).toEqual([]);
+    expect(result.stats.fillerTrimmed).toBe(1);
+  });
+
+  it("keeps a real rewrite without the note", () => {
+    const result = applyGuardrails(
+      original,
+      reword("Raised the Lighthouse performance score from 54 to 91. (No reason provided.)"),
+    );
+    expect(textOf(result.resume)).toBe("Raised the Lighthouse performance score from 54 to 91.");
+  });
+
+  it("leaves an ordinary parenthesis alone", () => {
+    const text = "Improved Lighthouse performance score from 54 to 91 (React, TypeScript).";
+    const result = applyGuardrails(original, reword(text));
+    expect(textOf(result.resume)).toBe(text);
+    expect(result.stats.fillerTrimmed).toBe(0);
   });
 });
 
@@ -967,6 +1086,7 @@ describe("applyGuardrails: general guarantees", () => {
       itemsDropped: 1,
       skillsRemoved: 2,
       textsRestored: 1,
+      fillerTrimmed: 0,
     });
     expect(Object.values(stats).every((value) => typeof value === "number")).toBe(true);
   });
