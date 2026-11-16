@@ -310,7 +310,7 @@
 - [x] FE Job Description page: textarea, live character counter (100–15,000), validation messages (`JobDescriptionPage.test.tsx`, 20)
 - [x] `useTailorResume` mutation. **Send `applyResumeAdditions(parsed.resume, additions)` as `resume`, not `parsed.resume`** (D-85) (tested)
 - [x] `StepProgress` component ("Analyzing job description…" → "Tailoring your resume…" → "Checking accuracy…"), time-based in MVP (steps change at 4 s and 12 s)
-- [x] On success → store the result → navigate to `/result` (`/result` is still the Day 16 placeholder)
+- [x] On success → store the result → navigate to `/result` (the result page is built on Day 16)
 
 **Deliverable:** JD submission works end to end.
 **Exit check:** submitting a JD in the browser returns a TailorResult (visible in devtools).
@@ -321,12 +321,12 @@
 **Goal:** the user sees the tailored resume and understands what changed.
 **Tasks:** FE-7
 
-- [ ] Result layout: tailored preview (reuse `ResumeView`) + sidebar/tabs
-- [ ] Changes list: grouped by section, before → after, reason
-- [ ] Keyword panel: match score, matched chips, missing chips ("not found in your resume")
-- [ ] Warnings banner for guardrail findings
-- [ ] Job summary header (title, company)
-- [ ] Component tests
+- [x] Result layout: tailored preview (reuse `ResumeView`) + sidebar/tabs
+- [x] Changes list: grouped by section, before → after, reason
+- [x] Keyword panel: match score, matched chips, missing chips ("not found in your resume")
+- [x] Warnings banner for guardrail findings
+- [x] Job summary header (title, company)
+- [x] Component tests
 
 **Deliverable:** result page.
 **Exit check:** the full flow up to preview works in the browser.
@@ -496,7 +496,7 @@
 | 13 | Keyword service + prompt draft | ✅ |
 | 14 | Tailor service + prompt iteration | ✅ (closed by D-98; effort tuning deferred) |
 | 15 | Tailor endpoint + JD page | ✅ |
-| 16 | Result page | ⬜ |
+| 16 | Result page | ✅ (browser exit check moved to the Day 17 full manual run) |
 | 17 | Demo + buffer 🛟 → **M1.3** | ⬜ |
 | 18 | PDF template | ⬜ |
 | 19 | PDF download + re-tailor | ⬜ |

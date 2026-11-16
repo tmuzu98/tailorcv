@@ -14,27 +14,28 @@
 
 | Field | Value |
 |---|---|
-| Last updated | 2026-11-15 |
+| Last updated | 2026-11-16 (Session 17) |
 | Phase | Phase 1 (MVP), Milestone 1.3 (tailoring). Milestone 1.2 (upload & parse) complete |
-| Current day (per `07-daily-development-plan.md`) | **Day 15 ✅** (the user ran the full flow in the browser with their own resume on 2026-11-15). Next: **Day 16, result page (not started)**. Day 15, the security limits (D-101, D-102), the temporary provider switch (D-103) and the quality rules (D-104) are uncommitted |
-| Branch | `main`. Days 13–14 pushed (`1160cc8`). Everything after it is **uncommitted** (D-71): 46 changed or new files |
+| Current day (per `07-daily-development-plan.md`) | **Day 16 ✅ (result page), committed and pushed.** Next: **Day 17, Milestone 1.3 demo + buffer** |
+| Branch | `main` |
 | Remote | https://github.com/tmuzu98/tailorcv (**private**) |
-| Last commit | `1160cc8 feat(api): keyword service, edits-only tailoring and tailor service (Days 13-14)` (pushed) |
-| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **618 tests**: shared 71, web 101, api 446). GitHub CI green on `1160cc8` |
+| Last commit | `feat(web): result page with changes and keyword tabs (Day 16)` (pushed) |
+| Build / CI | `npm run check` ✅ locally (lint 0 warnings, format, typecheck, **665 tests**: shared 71, web 126, api 468) |
 | Deployed URLs | — (deploy deferred to Day 24, D-45) |
-| Local dev | Servers **stopped** at the end of Session 15. `apps/api/.env` has `LLM_PROVIDER_SWITCH=true`: the header shows the "Local model / Claude" buttons (D-103, temporary). `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. **`apps/api/.env` is on `LLM_PROVIDER=ollama`** (local `llama3`, free; switched back by the user's decision on 2026-11-15 after the Claude test runs). The Claude key stays in `.env`; to use Claude again set `LLM_PROVIDER=anthropic`, and ask the user before any Claude call |
+| Local dev | `apps/api/.env`: `LLM_PROVIDER=ollama`, `LLM_PROVIDER_SWITCH=true` (header buttons "Local model / Claude", D-103, temporary), the Claude key in place. `npm run dev` from the repo root: **http://localhost:5173**, API on :4000. Ask the user before any Claude call |
 
-**Next action (start of the next session):** ask the user for the result of their browser run on the D-104 changes (typos fixed? any false guardrail warning? `matchScoreBefore` present?). Then commit Day 15 + D-101 to D-104 when told, and start Day 16 (result page).
+**Next action (start of the next session):** Day 17. First, the browser exit check of Day 16 as part of the full manual run (3 resumes × 3 job descriptions on `llama3`; Claude only if the user says so). Then the tailoring quality pass the user agreed to do after Day 16 (`tailor:eval` over the 6 fixture pairs, a quality log).
 
-**Next steps (as of Day 15, in order)**
-1. **Commit and push Day 15** (with D-101 to D-103) when the user says so. Then **Day 16:** result page (job summary header, tailored resume preview, change list, keyword panel, warnings banner; proposed: tabs, and the keyword score before tailoring added to the response).
-   - Done in part 5 (D-104): the keyword filter, the dropped-number, commentary and headline guardrails, the typo rule in the prompt. **Not yet checked on Claude** (the user's next browser run): whether typos are now fixed, and whether Claude's bullets pass the new guardrails without false warnings.
-   - Result page ideas agreed in conversation: show the score before → after, and turn missing keywords into an action ("Have this experience? Add it on the review page and run again").
+**Next steps (in order)**
+1. **Day 17:** full manual run upload → result, fix bugs found, catch up, refactor rough spots, docs. Check on the result page: header, preview shows the reworded bullets, Changes and Keywords tabs, "Add it on the review page".
+2. **Open question for the user:** a "Your tailored resume" title on the preview and/or highlighting reworded bullets in it (asked in Session 17, not answered; Parking Lot).
+3. **Tailoring quality pass** (agreed for after Day 16): `tailor:eval` script on `llama3`, a quality log, one evidence-backed change a day.
+4. **Live check of D-104 + D-105** in the browser (Local model, then Claude if the user approves).
    - **REMINDER for Day 24/25 (the user asked for it): remove the development provider switch before production** (D-103; checkboxes in the plan).
-2. **User, still open:** confirm ADR-015 (the model returns edits), and say whether Claude is the production provider (OD-10: the key exists and works, the decision is not recorded).
-3. **Carried over from Day 14 (D-98):** the revised prompt was checked with one Claude run only. Watch in Day 16–17 use and the Day 22 evals: (a) it now rewords few or no bullets when they already fit the job (the one run changed none); (b) the "no first person" summary rule was added after that run and has not been sent to a model; (c) effort `medium` vs `low` has not been compared.
-4. **Security review follow-ups for the user (Session 15 part 3):** set a monthly spend limit for the API key in the Anthropic Console; decide on the privacy wording (the footer says "processed and not stored" but does not say the resume is sent to an AI provider); review the D-101 default numbers.
-5. **Before Day 24:** resolve OD-10 formally (provider, spend limit). Open housekeeping: Known Issue #7 (`npm audit` in CI + Dependabot: add or drop from the design).
+5. **User, still open:** confirm ADR-015 (the model returns edits), and OD-10 (Claude as the production provider).
+6. **Security follow-ups for the user:** monthly spend limit in the Anthropic Console; privacy wording (say the resume is sent to an AI provider); review the D-101 numbers.
+7. **Before Day 24:** resolve OD-10 formally. Known Issue #7 (`npm audit` in CI + Dependabot).
+8. **After the MVP:** `research/nextraise-ai.md` (D-106).
 
 **Blockers:** none.
 
@@ -161,6 +162,7 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 | 2026-11-15 | D-104 | **Tailoring quality enforced in code, not left to the model.** (1) `keywordsFoundIn`: only keywords whose words all occur in the job description are used for skill order, guardrails and the score. (2) Guardrails for a reworded bullet or detail: it keeps every number of its original, and it adds no commentary about the candidate (a short pattern list); otherwise the original text is kept with a warning. (3) Guardrail for the headline: a new one must be a job title from the resume. (4) `keywordAnalysis.matchScoreBefore` (optional in the shared schema). (5) Prompt: correct clear typos and grammar in every bullet, changing nothing else. (6) The headline's reason text now says "set to a job title from your resume" | The user's two browser runs with their own resume. On `llama3`: commentary on all 13 bullets, the resume's skills listed as the job's keywords (score 100, nothing missing), numbers dropped, 0 warnings. On Claude: honest, but typos left in because unchanged bullets had to be returned exactly. The user asked for the changes a principal engineer would make: deterministic checks hold on any model, a prompt does not. Known cost: the commentary patterns can reject a legitimate rewrite (the original is then kept, with a warning), and they catch only the listed forms | Tech Design §6.2 steps 2a and 3, API spec §3 |
 | 2026-11-15 | D-105 | **Tailoring output checked for what `llama3` slipped past D-104.** (1) Prompt: the bullet field's description no longer contains "for this job" (the model copied it onto every bullet); new rules: never mention the job/role/company inside a bullet, the reason is never a copy of the bullet. (2) Guardrail: a reworded bullet, detail or summary that mentions the job being applied for ("this job/role/position/posting/opening", "the target role/company") → original kept + warning; not flagged if the user's own text had it. (3) The model's change reason is used only when it is a reason (blank, > 30 words, or containing the bullet's before/after text → default). (4) A change of only case/punctuation/spacing gets the reason "Fixed spelling, capitalization or punctuation." and counts as `bulletsCorrected`; the change type stays `reworded` (no schema change) | The user's browser run on `llama3` with their own resume: "for this job." appended to all 13 bullets, every reason a copy of the bullet, most "rewrites" only punctuation, 0 warnings. The user asked that the fixes must not hurt Claude's output: replaying the six saved Claude runs (Day 14, synthetic fixtures) through the new code changed nothing (45 bullets, 45 reasons, 6 summaries; Claude's reasons are ≤ 14 words) | Tech Design §6.2 steps 3 and 4b, API spec §3, ADR-017 note |
 | 2026-11-15 | D-106 | **Competitor research is kept apart from the project docs, for after the MVP.** A top-level `research/` folder (first note: `research/nextraise-ai.md`). It changes no scope; ideas from it go through the Parking Lot → decision flow when the MVP is done | The user's request: "for knowledge purpose", "come back to this once we have our MVP ready" | `research/` |
+| 2026-11-16 | D-107 | **Result page (Day 16): no `corrected` change type; tabs for the details; "Start over" left for FE-9.** Typo-only fixes stay type `reworded`, shown with the reason "Fixed spelling, capitalization or punctuation." (no shared schema change). The page shows the tailored resume beside a panel with two tabs, Changes (grouped by section, before → after, reason; a reorder shows the moved item by `targetId`) and Keywords (score before → after, matched and missing chips, "Add it on the review page"). The result page gets only "Change job description" for now; "Start over" / "Tailor for another job" are FE-9 (Day 19) | A new change type would change the shared schema, the API spec and the model's contract for a label the reason already gives; the plan puts FE-9 on Day 19 | Tech Design §6.4, `apps/web/src/features/result/` |
 
 ---
 
@@ -177,7 +179,8 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 - Tailoring: compare effort `medium` vs `low` on Claude (quality, latency, cost). Deferred from Day 14 (D-98); fits the Day 22 evals.
 - Guardrail in code for the headline (must equal the original headline or a job title in the resume) and for dropped numbers in a reworded bullet, instead of relying on the prompt (D-97).
 - **After the MVP: review `research/nextraise-ai.md`** (D-106). Top candidates: "needs your input" questions for missing keywords and missing numbers; accept/reject per change on the result page; deterministic resume quality checks with an open score formula; score bands; DOCX export and input; multi-job tailoring with browser-only history.
-- Change type `corrected` in the shared schema (typo-only changes shown apart on the result page). D-105 kept `reworded` with its own reason to avoid a schema change; decide on Day 16 if the result page needs it.
+- ~~Change type `corrected` in the shared schema~~ → decided: not needed, the reason labels typo fixes (D-107).
+- Result page: a "Your tailored resume" title on the preview, and highlighting reworded bullets in the preview (asked in Session 17; the user has not chosen yet).
 - Guardrail for a dropped tool in a reworded bullet ("…using React, Node.js, Express.js…" → Express.js gone), like the D-104 dropped-number check. Seen on `llama3` on 2026-11-15.
 - Summary quality: filler openers ("Highly motivated and detail-oriented…") and claims the resume does not state ("object-oriented design"). Hard to check in code; Day 22 evals.
 - ~~Overall deadline for LLM calls~~ → decided: overall deadline per request (D-72), implemented on Day 9.
@@ -935,6 +938,29 @@ _Resolved on Day 1: OD-1 → D-6, OD-2 → D-9, OD-3 → D-7, OD-5 → D-8, OD-7
 **Issues / blockers:** none.
 **Exit check met?** n/a (Day 15 ✅, Day 16 not started).
 **Next session:** Day 16, result page.
+
+### 2026-11-16: Session 17 (Day 16: Result page)
+**Day:** 16 ✅
+**Done**
+- [FE-7] `pages/ResultPage.tsx`: job header ("Tailored for <title> at <company>", top requirements, "Change job description"), warnings banner, tailored preview (`ResumeView`), side panel with accessible tabs (`features/result/ResultTabs.tsx`).
+- `features/result/changeGroups.ts` (group by section, find an item's text by id, score delta), `ChangeList.tsx` (type, before → after, reason; a reorder shows the moved item), `KeywordPanel.tsx` (score /100 with "up from N", matched and missing chips, "Add it on the review page" → `/review`).
+- Tests first: 8 helper tests, 17 page tests (14 red before the code). Web 101 → **126**, total **665**.
+- Explained the whole tailoring pipeline to the user (request → one AI call for edits → keyword filter → apply edits → guardrails → keyword score → change list → result page).
+
+**Verified**
+- `npm run check` ✅ (0 lint warnings, 665 tests).
+- Deliberate break (D-33): 8 breaks, each run separately (empty sections kept, no reorder text, score delta reversed, matched keywords shown as missing, preview dropping jobs, no arrow keys, only the first warning, reason hidden). The first round missed "matched shown as missing"; the test was tightened and now fails on it. All 8 fail at least one test.
+- Dev servers started; health OK on `llama3`.
+- **Not verified:** the Day 16 exit check in the browser (the user chose to push first; it moves to the Day 17 full manual run).
+
+**Discussed**
+- The tailored resume is the left preview; a download comes on Days 18–19. Proposed a preview title and highlighted reworded bullets (Parking Lot, not answered).
+
+**Decisions:** D-107.
+**Doc-sync audit (D-52):** Tech Design §6.4 (result page), plan (Day 16 ticked, tracker, Day 15 note), README status, DEVLOG (status, D-107, Parking Lot). No shared schema or API change, so the API spec and `.env.example` are unchanged.
+**Issues / blockers:** none.
+**Exit check met?** Not yet in the browser (moved to Day 17's manual run); all tests and breaks pass.
+**Next session:** Day 17, full manual run.
 
 <!--
 TEMPLATE FOR NEW ENTRIES (copy below the last entry):
