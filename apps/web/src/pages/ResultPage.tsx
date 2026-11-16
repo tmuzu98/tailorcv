@@ -61,7 +61,7 @@ export function ResultPage() {
               {
                 id: "changes",
                 label: `Changes (${changes.length})`,
-                content: <ChangeList groups={groups} />,
+                content: <ChangeList groups={groups} hadRejections={warnings.length > 0} />,
               },
               {
                 id: "keywords",

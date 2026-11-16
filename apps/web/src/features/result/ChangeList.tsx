@@ -9,11 +9,20 @@ const TYPE_LABELS: Record<Change["type"], string> = {
 };
 
 /** What tailoring changed, grouped by section: before → after and the reason (FE-7). */
-export function ChangeList({ groups }: { groups: ChangeGroup[] }) {
+export function ChangeList({
+  groups,
+  hadRejections = false,
+}: {
+  groups: ChangeGroup[];
+  /** Guardrail warnings exist: "no changes" then means the suggestions were rejected. */
+  hadRejections?: boolean;
+}) {
   if (groups.length === 0) {
     return (
       <p className="text-sm text-slate-600">
-        No changes were needed: your resume already fits this job well.
+        {hadRejections
+          ? "No changes were made: the suggested edits did not pass our checks, so your original wording was kept (see the notes above)."
+          : "No changes were needed: your resume already fits this job well."}
       </p>
     );
   }

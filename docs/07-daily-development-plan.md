@@ -336,11 +336,11 @@
 ### Day 17: Milestone 1.3 demo + buffer 🛟
 **Goal:** a stable flow from upload to preview.
 
-- [ ] Full manual run with 3 resumes × 3 JDs
-- [ ] Fix bugs found during the demo
-- [ ] Catch up on any slipped tasks
-- [ ] Refactor any rough spots (no new features)
-- [ ] Update docs if the API or schema changed
+- [x] Full manual run with 3 resumes × 3 JDs (through the API on `llama3`, the 3 fixture PDFs × the 3 fixture postings; the user's click-through in the browser is still open)
+- [x] Fix bugs found during the demo
+- [x] Catch up on any slipped tasks
+- [x] Refactor any rough spots (no new features)
+- [x] Update docs if the API or schema changed
 
 **Deliverable:** ✅ **Milestone 1.3 complete.**
 **Exit check:** no known blocking bugs.
@@ -385,7 +385,7 @@
 - [ ] Responsive layouts at 375 px, 768 px and 1280 px for all 4 pages
 - [ ] Keyboard navigation: dropzone, buttons, tabs, focus states visible
 - [ ] Labels, aria-live for loading and errors, color contrast check
-- [ ] Privacy note: "Your resume is processed and not stored"
+- [ ] Privacy note: "Your resume is sent to an AI provider to be read and tailored. TailorCV does not store it." (wording updated on Day 17)
 - [ ] Empty, loading and error states reviewed on every page
 - [ ] Lighthouse accessibility score ≥ 90
 
@@ -497,7 +497,7 @@
 | 14 | Tailor service + prompt iteration | ✅ (closed by D-98; effort tuning deferred) |
 | 15 | Tailor endpoint + JD page | ✅ |
 | 16 | Result page | ✅ (browser exit check moved to the Day 17 full manual run) |
-| 17 | Demo + buffer 🛟 → **M1.3** | ⬜ |
+| 17 | Demo + buffer 🛟 → **M1.3** | ✅ (API run + security review; the user's browser click-through still open) |
 | 18 | PDF template | ⬜ |
 | 19 | PDF download + re-tailor | ⬜ |
 | 20 | Responsive & a11y | ⬜ |

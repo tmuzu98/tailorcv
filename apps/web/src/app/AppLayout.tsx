@@ -47,7 +47,10 @@ export function AppLayout() {
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs text-slate-500">
-          <span>Your resume is processed and not stored.</span>
+          <span>
+            Your resume is sent to an AI provider to be read and tailored. TailorCV does not store
+            it.
+          </span>
           <ApiStatus onHealth={(health) => setLlmSwitch(health.llmSwitch)} />
         </div>
       </footer>

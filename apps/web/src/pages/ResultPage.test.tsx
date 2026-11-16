@@ -122,6 +122,13 @@ describe("ResultPage: changes tab", () => {
     renderResult({ ...RESULT, changes: [] });
     expect(screen.getByRole("tabpanel")).toHaveTextContent(/no changes were needed/i);
   });
+
+  it("does not claim a good fit when every suggestion was rejected by the checks", () => {
+    renderResult({ ...RESULT, changes: [], warnings: ["Rejected one."] });
+    const panel = screen.getByRole("tabpanel");
+    expect(panel).not.toHaveTextContent(/already fits/i);
+    expect(panel).toHaveTextContent(/did not pass our checks/i);
+  });
 });
 
 describe("ResultPage: keywords tab", () => {
